@@ -1,8 +1,6 @@
 # ZENITH-SIGNER
 
 <div align="center">
-  <img alt="Zenith Signer Logo" src="./docs/zenith-signer.svg">
-  <br>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-GHCR-2496ED?style=for-the-badge&logo=docker&logoColor=white">
   <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge">
