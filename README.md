@@ -83,6 +83,7 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 <summary>⚙️ Referência de configuração e endpoints (clique para expandir)</summary>
 
 ### Endpoints disponíveis
+- `GET /` — Portal inicial com validador público de assinatura por Hash (`?hash=...`)
 - `GET /assinar?doc=<id>` — Widget de confirmação para `<iframe>`
 - `GET /auth/login` e `GET /auth/callback` — Fluxo de login Microsoft Entra ID
 - `POST /confirmar` — Registro da assinatura

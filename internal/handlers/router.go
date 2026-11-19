@@ -29,6 +29,11 @@ type RouterParams struct {
 
 // NewRouter wires handlers, templates, and middlewares into a unified http.Handler.
 func NewRouter(p RouterParams) (http.Handler, error) {
+	homeTmpl, err := template.ParseFS(p.TemplateFS, "templates/home.html")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse templates/home.html: %w", err)
+	}
+
 	embedTmpl, err := template.ParseFS(p.TemplateFS, "templates/embed.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates/embed.html: %w", err)
@@ -39,6 +44,7 @@ func NewRouter(p RouterParams) (http.Handler, error) {
 		return nil, fmt.Errorf("failed to parse templates/admin.html: %w", err)
 	}
 
+	homeHandler := NewHomeHandler(p.Repo, homeTmpl, p.Config.Server.AppName, p.Logger)
 	embedHandler := NewEmbedHandler(p.SignerSvc, embedTmpl)
 	authHandler := NewAuthHandler(p.AuthSvc, p.Logger)
 	signHandler := NewSignHandler(p.SignerSvc, p.Logger)
@@ -49,6 +55,7 @@ func NewRouter(p RouterParams) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Public and document embed routes
+	mux.Handle("/", homeHandler)
 	mux.Handle("/assinar", embedHandler)
 	mux.HandleFunc("/auth/login", authHandler.HandleLogin)
 	mux.HandleFunc("/auth/callback", authHandler.HandleCallback)

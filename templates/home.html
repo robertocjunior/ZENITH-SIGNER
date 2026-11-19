@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.AppName}} — Portal de Assinaturas</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 0; background: #f8f9fa; color: #1f2328; min-height: 100vh; display: flex; flex-direction: column; }
+    .topbar { background: #ffffff; border-bottom: 1px solid #e1dfdd; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+    .brand { font-size: 18px; font-weight: 700; color: #111827; text-decoration: none; }
+    .btn { padding: 8px 14px; border-radius: 5px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border: none; }
+    .btn-primary { background: #0078d4; color: #ffffff; }
+    .btn-primary:hover { background: #106ebe; }
+    .btn-secondary { background: #ffffff; color: #323130; border: 1px solid #d0d7de; }
+    .btn-secondary:hover { background: #f3f2f1; }
+    .main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { width: 100%; max-width: 640px; background: #ffffff; border: 1px solid #e1dfdd; border-radius: 8px; padding: 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    h1 { font-size: 22px; margin: 0 0 8px 0; color: #111827; }
+    .subtitle { font-size: 14px; color: #605e5c; margin: 0 0 22px 0; line-height: 1.5; }
+    .search-form { display: flex; gap: 8px; flex-wrap: wrap; }
+    .search-form input { flex: 1; min-width: 240px; padding: 10px 12px; border: 1px solid #d0d7de; border-radius: 5px; font-size: 14px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; outline: none; }
+    .search-form input:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2); }
+    .result-box { margin-top: 22px; padding: 18px; border-radius: 6px; font-size: 14px; line-height: 1.6; }
+    .result-valid { background: #f4fdf4; border: 1px solid #c3e6cb; border-left: 4px solid #107c41; color: #1f2328; }
+    .result-invalid { background: #fef6f6; border: 1px solid #f5c2c7; border-left: 4px solid #d13438; color: #842029; }
+    .result-title { font-size: 16px; font-weight: 700; margin: 0 0 10px 0; }
+    .result-valid .result-title { color: #107c41; }
+    .meta-row { margin: 4px 0; }
+    .hash-mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; word-break: break-all; background: rgba(0,0,0,0.04); padding: 2px 6px; border-radius: 4px; }
+    .footer { text-align: center; padding: 16px; font-size: 12px; color: #605e5c; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">{{.AppName}}</a>
+    <a href="/admin" class="btn btn-secondary">Painel Administrativo</a>
+  </header>
+
+  <main class="main">
+    <div class="card">
+      <h1>Verificar Autenticidade de Assinatura</h1>
+      <p class="subtitle">Informe o código único (Hash SHA-256) presente no recibo de confirmação por e-mail para validar a autenticidade do registro.</p>
+
+      <form method="GET" action="/" class="search-form">
+        <input type="text" name="hash" placeholder="Cole o código Hash SHA-256..." value="{{.HashQuery}}" required>
+        <button type="submit" class="btn btn-primary">Verificar</button>
+      </form>
+
+      {{if .Searched}}
+        {{if .Record}}
+        <div class="result-box result-valid">
+          <div class="result-title">✓ Assinatura Autêntica e Registrada</div>
+          <div class="meta-row"><strong>Documento:</strong> {{.Record.DocumentName}}</div>
+          <div class="meta-row"><strong>Colaborador:</strong> {{.Record.UserName}}</div>
+          {{if .Record.Department}}<div class="meta-row"><strong>Setor:</strong> {{.Record.Department}}</div>{{end}}
+          <div class="meta-row"><strong>Data/Hora:</strong> {{.Record.SignedAt.Format "02/01/2006 15:04:05"}}</div>
+          <div class="meta-row"><strong>Hash:</strong> <span class="hash-mono">{{.Record.HashID}}</span></div>
+        </div>
+        {{else}}
+        <div class="result-box result-invalid">
+          <div class="result-title">Assinatura não encontrada</div>
+          Nenhum registro foi localizado para o código informado. Verifique se o hash foi copiado corretamente.
+        </div>
+        {{end}}
+      {{end}}
+    </div>
+  </main>
+
+  <footer class="footer">
+    {{.AppName}} • Confirmação e Auditoria Eletrônica de Leitura
+  </footer>
+</body>
+</html>
