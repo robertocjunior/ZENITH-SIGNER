@@ -53,6 +53,8 @@ type FilterCriteria struct {
 	Job      string
 	Hash     string
 	IP       string
+	DateFrom string
+	DateTo   string
 }
 
 // HealthResponse represents system health and liveness state for 24/7 monitoring.

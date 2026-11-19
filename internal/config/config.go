@@ -19,6 +19,7 @@ type Config struct {
 }
 
 type ServerConfig struct {
+	AppName         string
 	Port            string
 	BaseURL         string
 	ReadTimeout     time.Duration
@@ -75,6 +76,7 @@ func Load() *Config {
 
 	cfg := &Config{
 		Server: ServerConfig{
+			AppName:         getEnv("APP_NAME", "Zenith Signer"),
 			Port:            getEnv("PORT", "8080"),
 			BaseURL:         baseURL,
 			ReadTimeout:     getEnvDuration("HTTP_READ_TIMEOUT", 15*time.Second),

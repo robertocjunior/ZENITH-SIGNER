@@ -15,6 +15,9 @@ func TestLoadDefaults(t *testing.T) {
 	os.Unsetenv("ADMIN_EMAILS")
 
 	cfg := Load()
+	if cfg.Server.AppName != "Zenith Signer" {
+		t.Errorf("expected default app name Zenith Signer, got %s", cfg.Server.AppName)
+	}
 	if cfg.Server.Port != "8080" {
 		t.Errorf("expected default port 8080, got %s", cfg.Server.Port)
 	}
@@ -42,6 +45,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadCustom(t *testing.T) {
+	t.Setenv("APP_NAME", "Grupo Lipetral")
 	t.Setenv("PORT", "9090")
 	t.Setenv("BASE_URL", "https://assinador.empresa.com/")
 	t.Setenv("ADMIN_EMAILS", "admin1@empresa.com, Admin2@empresa.com ")
@@ -54,6 +58,9 @@ func TestLoadCustom(t *testing.T) {
 	t.Setenv("EMAIL_SIGNATURE_NAME", "STI - Grupo Lipetral")
 
 	cfg := Load()
+	if cfg.Server.AppName != "Grupo Lipetral" {
+		t.Errorf("expected app name Grupo Lipetral, got %s", cfg.Server.AppName)
+	}
 	if cfg.Server.Port != "9090" {
 		t.Errorf("expected port 9090, got %s", cfg.Server.Port)
 	}

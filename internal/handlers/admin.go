@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"zenith-signer/internal/auth"
@@ -12,18 +13,25 @@ import (
 	"zenith-signer/internal/models"
 )
 
+const adminPageSize = 50
+
 type AdminHandler struct {
 	repo    database.Repository
 	authSvc auth.Service
 	tmpl    *template.Template
+	appName string
 	logger  *slog.Logger
 }
 
-func NewAdminHandler(repo database.Repository, authSvc auth.Service, tmpl *template.Template, logger *slog.Logger) *AdminHandler {
+func NewAdminHandler(repo database.Repository, authSvc auth.Service, tmpl *template.Template, appName string, logger *slog.Logger) *AdminHandler {
+	if strings.TrimSpace(appName) == "" {
+		appName = "Zenith Signer"
+	}
 	return &AdminHandler{
 		repo:    repo,
 		authSvc: authSvc,
 		tmpl:    tmpl,
+		appName: appName,
 		logger:  logger,
 	}
 }
@@ -58,6 +66,8 @@ func extractFilterCriteria(r *http.Request) models.FilterCriteria {
 		Job:      strings.TrimSpace(r.URL.Query().Get("job")),
 		Hash:     strings.TrimSpace(r.URL.Query().Get("hash")),
 		IP:       strings.TrimSpace(r.URL.Query().Get("ip")),
+		DateFrom: strings.TrimSpace(r.URL.Query().Get("date_from")),
+		DateTo:   strings.TrimSpace(r.URL.Query().Get("date_to")),
 	}
 }
 
@@ -86,20 +96,64 @@ func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.String("request_id", RequestIDFromContext(r.Context())),
 	)
 
+	uniqueDocs := make(map[string]struct{})
+	uniqueUsers := make(map[string]struct{})
+	for _, rec := range records {
+		uniqueDocs[rec.DocumentName] = struct{}{}
+		uniqueUsers[strings.ToLower(rec.UserEmail)] = struct{}{}
+	}
+
+	totalCount := len(records)
+	totalPages := (totalCount + adminPageSize - 1) / adminPageSize
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	startIdx := (page - 1) * adminPageSize
+	endIdx := startIdx + adminPageSize
+	if startIdx > totalCount {
+		startIdx = totalCount
+	}
+	if endIdx > totalCount {
+		endIdx = totalCount
+	}
+	pagedRecords := records[startIdx:endIdx]
+
 	q := r.URL.Query()
 	q.Del("format")
+	q.Del("page")
+	baseQuery := q.Encode()
 
 	data := map[string]interface{}{
-		"UserEmail":   userEmail,
-		"Records":     records,
-		"FilterDoc":   filter.Document,
-		"FilterUser":  filter.User,
-		"FilterDept":  filter.Dept,
-		"FilterJob":   filter.Job,
-		"FilterHash":  filter.Hash,
-		"FilterIP":    filter.IP,
-		"QueryString": q.Encode(),
-		"Count":       len(records),
+		"AppName":        h.appName,
+		"UserEmail":      userEmail,
+		"Records":        pagedRecords,
+		"FilterDoc":      filter.Document,
+		"FilterUser":     filter.User,
+		"FilterDept":     filter.Dept,
+		"FilterJob":      filter.Job,
+		"FilterHash":     filter.Hash,
+		"FilterIP":       filter.IP,
+		"FilterDateFrom": filter.DateFrom,
+		"FilterDateTo":   filter.DateTo,
+		"QueryString":    baseQuery,
+		"Count":          totalCount,
+		"UniqueDocs":     len(uniqueDocs),
+		"UniqueUsers":    len(uniqueUsers),
+		"Page":           page,
+		"TotalPages":     totalPages,
+		"HasPrev":        page > 1,
+		"HasNext":        page < totalPages,
+		"PrevPage":       page - 1,
+		"NextPage":       page + 1,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

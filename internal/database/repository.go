@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"zenith-signer/internal/models"
 )
@@ -165,6 +166,18 @@ func (r *sqliteRepository) buildFilterQuery(baseSQL string, filter models.Filter
 	if ip := strings.TrimSpace(filter.IP); ip != "" {
 		sb.WriteString(" AND ip_address LIKE ?")
 		args = append(args, "%"+ip+"%")
+	}
+	if df := strings.TrimSpace(filter.DateFrom); df != "" {
+		if t, err := time.ParseInLocation("2006-01-02", df, time.Local); err == nil {
+			sb.WriteString(" AND signed_at >= ?")
+			args = append(args, t)
+		}
+	}
+	if dt := strings.TrimSpace(filter.DateTo); dt != "" {
+		if t, err := time.ParseInLocation("2006-01-02", dt, time.Local); err == nil {
+			sb.WriteString(" AND signed_at < ?")
+			args = append(args, t.Add(24*time.Hour))
+		}
 	}
 
 	return sb.String(), args

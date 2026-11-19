@@ -42,7 +42,7 @@ func NewRouter(p RouterParams) (http.Handler, error) {
 	embedHandler := NewEmbedHandler(p.SignerSvc, embedTmpl)
 	authHandler := NewAuthHandler(p.AuthSvc, p.Logger)
 	signHandler := NewSignHandler(p.SignerSvc, p.Logger)
-	adminHandler := NewAdminHandler(p.Repo, p.AuthSvc, adminTmpl, p.Logger)
+	adminHandler := NewAdminHandler(p.Repo, p.AuthSvc, adminTmpl, p.Config.Server.AppName, p.Logger)
 	exportHandler := NewExportHandler(p.Repo, p.AuthSvc, p.Logger)
 	healthHandler := NewHealthHandler(p.DB, p.StartTime)
 

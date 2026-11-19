@@ -93,6 +93,7 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 ### Principais variáveis de ambiente (`.env`)
 | Variável | Descrição | Padrão |
 | :--- | :--- | :--- |
+| `APP_NAME` | Nome exibido no título e cabeçalho do painel admin | `Zenith Signer` |
 | `BASE_URL` | URL pública da aplicação | `http://localhost:8080` |
 | `PORT` | Porta interna do servidor | `8080` |
 | `DB_PATH` | Caminho do banco SQLite | `/app/data/signatures.db` |
