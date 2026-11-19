@@ -53,6 +53,7 @@ func (h *SignHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err := h.signerSvc.SignDocument(r.Context(), req)
 	if err != nil {
 		h.logger.Error("error registering signature",
+			slog.String("request_id", RequestIDFromContext(r.Context())),
 			slog.String("doc", doc),
 			slog.String("email", userEmail),
 			slog.String("error", err.Error()),

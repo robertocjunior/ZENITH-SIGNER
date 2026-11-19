@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"html/template"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,13 +16,15 @@ type AdminHandler struct {
 	repo    database.Repository
 	authSvc auth.Service
 	tmpl    *template.Template
+	logger  *slog.Logger
 }
 
-func NewAdminHandler(repo database.Repository, authSvc auth.Service, tmpl *template.Template) *AdminHandler {
+func NewAdminHandler(repo database.Repository, authSvc auth.Service, tmpl *template.Template, logger *slog.Logger) *AdminHandler {
 	return &AdminHandler{
 		repo:    repo,
 		authSvc: authSvc,
 		tmpl:    tmpl,
+		logger:  logger,
 	}
 }
 
@@ -34,6 +37,11 @@ func (h *AdminHandler) checkAdminAuth(w http.ResponseWriter, r *http.Request) (s
 
 	userEmail := strings.ToLower(email)
 	if !h.authSvc.IsAdmin(userEmail) {
+		h.logger.Warn("admin access denied",
+			slog.String("email", userEmail),
+			slog.String("ip", extractClientIP(r)),
+			slog.String("request_id", RequestIDFromContext(r.Context())),
+		)
 		w.WriteHeader(http.StatusForbidden)
 		w.Write([]byte("Acesso restrito: Seu e-mail (" + userEmail + ") não está autorizado."))
 		return "", false
@@ -62,9 +70,21 @@ func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filter := extractFilterCriteria(r)
 	records, err := h.repo.List(r.Context(), filter)
 	if err != nil {
+		h.logger.Error("failed to query admin records",
+			slog.String("email", userEmail),
+			slog.String("request_id", RequestIDFromContext(r.Context())),
+			slog.String("error", err.Error()),
+		)
 		http.Error(w, "Erro ao buscar registros: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	h.logger.Info("admin panel accessed",
+		slog.String("email", userEmail),
+		slog.Int("records_count", len(records)),
+		slog.String("doc_filter", filter.Document),
+		slog.String("request_id", RequestIDFromContext(r.Context())),
+	)
 
 	q := r.URL.Query()
 	q.Del("format")

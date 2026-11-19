@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,18 +21,25 @@ import (
 type ExportHandler struct {
 	repo    database.Repository
 	authSvc auth.Service
+	logger  *slog.Logger
 }
 
-func NewExportHandler(repo database.Repository, authSvc auth.Service) *ExportHandler {
+func NewExportHandler(repo database.Repository, authSvc auth.Service, logger *slog.Logger) *ExportHandler {
 	return &ExportHandler{
 		repo:    repo,
 		authSvc: authSvc,
+		logger:  logger,
 	}
 }
 
 func (h *ExportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	email := getCookieValue(r, "user_email")
-	if email == "" || !h.authSvc.IsAdmin(strings.ToLower(email)) {
+	email := strings.ToLower(getCookieValue(r, "user_email"))
+	if email == "" || !h.authSvc.IsAdmin(email) {
+		h.logger.Warn("admin export access denied",
+			slog.String("email", email),
+			slog.String("ip", extractClientIP(r)),
+			slog.String("request_id", RequestIDFromContext(r.Context())),
+		)
 		http.Error(w, "Acesso restrito para administradores.", http.StatusForbidden)
 		return
 	}
@@ -39,6 +47,11 @@ func (h *ExportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filter := extractFilterCriteria(r)
 	records, err := h.repo.List(r.Context(), filter)
 	if err != nil {
+		h.logger.Error("failed to query records for export",
+			slog.String("email", email),
+			slog.String("request_id", RequestIDFromContext(r.Context())),
+			slog.String("error", err.Error()),
+		)
 		http.Error(w, "Erro ao gerar exportação: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -55,7 +68,16 @@ func (h *ExportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.exportXLSX(w, records, timestamp)
 	default:
 		http.Error(w, "Formato não suportado. Use xlsx, csv ou xml.", http.StatusBadRequest)
+		return
 	}
+
+	h.logger.Info("admin export generated",
+		slog.String("email", email),
+		slog.String("format", format),
+		slog.Int("records_count", len(records)),
+		slog.String("doc_filter", filter.Document),
+		slog.String("request_id", RequestIDFromContext(r.Context())),
+	)
 }
 
 func (h *ExportHandler) exportCSV(w http.ResponseWriter, records []models.SignatureRecord, timestamp string) {

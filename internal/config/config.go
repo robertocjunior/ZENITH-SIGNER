@@ -59,8 +59,9 @@ type SMTPConfig struct {
 }
 
 type LoggingConfig struct {
-	Level  slog.Level
-	Format string // "json" or "text"
+	Level    slog.Level
+	Format   string // "json" or "text"
+	FilePath string
 }
 
 type MaintenanceConfig struct {
@@ -110,8 +111,9 @@ func Load() *Config {
 			SignatureName: getEnv("EMAIL_SIGNATURE_NAME", "Zenith Signer"),
 		},
 		Logging: LoggingConfig{
-			Level:  parseLogLevel(getEnv("LOG_LEVEL", "INFO")),
-			Format: strings.ToLower(getEnv("LOG_FORMAT", "text")),
+			Level:    parseLogLevel(getEnv("LOG_LEVEL", "INFO")),
+			Format:   strings.ToLower(getEnv("LOG_FORMAT", "text")),
+			FilePath: strings.TrimSpace(getEnv("LOG_FILE", "")),
 		},
 		Maintenance: MaintenanceConfig{
 			Enabled:  getEnvBool("MAINTENANCE_ENABLED", true),

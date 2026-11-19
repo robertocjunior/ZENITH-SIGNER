@@ -46,6 +46,8 @@ func TestLoadCustom(t *testing.T) {
 	t.Setenv("BASE_URL", "https://assinador.empresa.com/")
 	t.Setenv("ADMIN_EMAILS", "admin1@empresa.com, Admin2@empresa.com ")
 	t.Setenv("LOG_LEVEL", "DEBUG")
+	t.Setenv("LOG_FORMAT", "json")
+	t.Setenv("LOG_FILE", "/app/data/zenith-signer.log")
 	t.Setenv("HTTP_READ_TIMEOUT", "25s")
 	t.Setenv("EMAIL_LOGO_URL", "https://example.com/logo.png")
 	t.Setenv("EMAIL_ACCENT_COLOR", "C4A54E")
@@ -63,6 +65,12 @@ func TestLoadCustom(t *testing.T) {
 	}
 	if cfg.Logging.Level != slog.LevelDebug {
 		t.Errorf("expected log level DEBUG, got %v", cfg.Logging.Level)
+	}
+	if cfg.Logging.Format != "json" {
+		t.Errorf("expected log format json, got %s", cfg.Logging.Format)
+	}
+	if cfg.Logging.FilePath != "/app/data/zenith-signer.log" {
+		t.Errorf("expected log file /app/data/zenith-signer.log, got %s", cfg.Logging.FilePath)
 	}
 	if cfg.Server.ReadTimeout != 25*time.Second {
 		t.Errorf("expected read timeout 25s, got %v", cfg.Server.ReadTimeout)

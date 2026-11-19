@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -23,7 +25,8 @@ import (
 // RunWithTemplates initializes all dependencies and runs the HTTP server with 24/7 reliability patterns.
 func RunWithTemplates(templateFS fs.FS) {
 	cfg := config.Load()
-	logger := setupLogger(cfg.Logging)
+	logger, closeLogFile := setupLogger(cfg.Logging)
+	defer closeLogFile()
 	slog.SetDefault(logger)
 
 	startTime := time.Now()
@@ -136,17 +139,40 @@ func RunWithTemplates(templateFS fs.FS) {
 	}
 }
 
-func setupLogger(cfg config.LoggingConfig) *slog.Logger {
+func setupLogger(cfg config.LoggingConfig) (*slog.Logger, func()) {
 	opts := &slog.HandlerOptions{
 		Level: cfg.Level,
 	}
 
-	var handler slog.Handler
-	if cfg.Format == "json" {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
+	var output io.Writer = os.Stdout
+	cleanup := func() {}
+	var fileErr error
+
+	if cfg.FilePath != "" {
+		if err := os.MkdirAll(filepath.Dir(cfg.FilePath), 0755); err != nil {
+			fileErr = err
+		} else if f, err := os.OpenFile(cfg.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err != nil {
+			fileErr = err
+		} else {
+			output = io.MultiWriter(os.Stdout, f)
+			cleanup = func() { _ = f.Close() }
+		}
 	}
 
-	return slog.New(handler)
+	var handler slog.Handler
+	if cfg.Format == "json" {
+		handler = slog.NewJSONHandler(output, opts)
+	} else {
+		handler = slog.NewTextHandler(output, opts)
+	}
+
+	logger := slog.New(handler)
+	if fileErr != nil {
+		logger.Warn("failed to open log file, falling back to stdout only",
+			slog.String("log_file", cfg.FilePath),
+			slog.String("error", fileErr.Error()),
+		)
+	}
+
+	return logger, cleanup
 }

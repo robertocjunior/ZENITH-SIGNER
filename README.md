@@ -106,6 +106,9 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `EMAIL_LOGO_URL` | URL pública da logo exibida no cabeçalho do e-mail | *(vazio)* |
 | `EMAIL_ACCENT_COLOR` | Cor hex das barras superior/inferior do e-mail | `#8BC74B` |
 | `EMAIL_SIGNATURE_NAME` | Nome exibido na assinatura do e-mail | `Zenith Signer` |
+| `LOG_LEVEL` | Nível mínimo dos logs (`DEBUG`, `INFO`, `WARN`, `ERROR`) | `INFO` |
+| `LOG_FORMAT` | Formato dos logs (`text` ou `json`) | `text` |
+| `LOG_FILE` | Caminho opcional para salvar logs em arquivo além do `stdout` | *(vazio)* |
 
 Para rodar localmente com Go 1.22+ (`CGO_ENABLED=1`) ou executar os testes:
 ```bash

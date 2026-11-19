@@ -44,14 +44,20 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.authSvc.Exchange(r.Context(), code)
 	if err != nil {
-		h.logger.Error("failed to exchange oauth code", slog.String("error", err.Error()))
+		h.logger.Error("failed to exchange oauth code",
+			slog.String("request_id", RequestIDFromContext(r.Context())),
+			slog.String("error", err.Error()),
+		)
 		http.Error(w, "Falha na troca de token com o Azure: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	profile, err := h.authSvc.GetProfile(r.Context(), token)
 	if err != nil {
-		h.logger.Error("failed to fetch user profile from Microsoft Graph", slog.String("error", err.Error()))
+		h.logger.Error("failed to fetch user profile from Microsoft Graph",
+			slog.String("request_id", RequestIDFromContext(r.Context())),
+			slog.String("error", err.Error()),
+		)
 		http.Error(w, "Falha ao consultar perfil no Microsoft Graph: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -65,6 +71,7 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	setSessionCookie(w, "user_location", profile.OfficeLocation)
 
 	h.logger.Info("user authenticated successfully via Microsoft Entra ID",
+		slog.String("request_id", RequestIDFromContext(r.Context())),
 		slog.String("email", effectiveEmail),
 		slog.String("name", profile.DisplayName),
 	)
