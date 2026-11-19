@@ -103,6 +103,9 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `SMTP_HOST` / `SMTP_PORT` | Servidor e porta SMTP | `smtp.office365.com` / `587` |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | Credenciais de envio SMTP | — |
 | `SMTP_FROM_EMAIL` / `SMTP_REPLY_EMAIL` | Remetente e e-mail de resposta dos recibos | — |
+| `EMAIL_LOGO_URL` | URL pública da logo exibida no cabeçalho do e-mail | *(vazio)* |
+| `EMAIL_ACCENT_COLOR` | Cor hex das barras superior/inferior do e-mail | `#8BC74B` |
+| `EMAIL_SIGNATURE_NAME` | Nome exibido na assinatura do e-mail | `Zenith Signer` |
 
 Para rodar localmente com Go 1.22+ (`CGO_ENABLED=1`) ou executar os testes:
 ```bash

@@ -30,6 +30,15 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.Maintenance.Enabled {
 		t.Errorf("expected maintenance to be enabled by default")
 	}
+	if cfg.SMTP.LogoURL != "" {
+		t.Errorf("expected empty default email logo URL, got %s", cfg.SMTP.LogoURL)
+	}
+	if cfg.SMTP.AccentColor != "#8BC74B" {
+		t.Errorf("expected default accent color #8BC74B, got %s", cfg.SMTP.AccentColor)
+	}
+	if cfg.SMTP.SignatureName != "Zenith Signer" {
+		t.Errorf("expected default signature name Zenith Signer, got %s", cfg.SMTP.SignatureName)
+	}
 }
 
 func TestLoadCustom(t *testing.T) {
@@ -38,6 +47,9 @@ func TestLoadCustom(t *testing.T) {
 	t.Setenv("ADMIN_EMAILS", "admin1@empresa.com, Admin2@empresa.com ")
 	t.Setenv("LOG_LEVEL", "DEBUG")
 	t.Setenv("HTTP_READ_TIMEOUT", "25s")
+	t.Setenv("EMAIL_LOGO_URL", "https://example.com/logo.png")
+	t.Setenv("EMAIL_ACCENT_COLOR", "C4A54E")
+	t.Setenv("EMAIL_SIGNATURE_NAME", "STI - Grupo Lipetral")
 
 	cfg := Load()
 	if cfg.Server.Port != "9090" {
@@ -54,5 +66,14 @@ func TestLoadCustom(t *testing.T) {
 	}
 	if cfg.Server.ReadTimeout != 25*time.Second {
 		t.Errorf("expected read timeout 25s, got %v", cfg.Server.ReadTimeout)
+	}
+	if cfg.SMTP.LogoURL != "https://example.com/logo.png" {
+		t.Errorf("expected email logo URL, got %s", cfg.SMTP.LogoURL)
+	}
+	if cfg.SMTP.AccentColor != "#C4A54E" {
+		t.Errorf("expected normalized accent color #C4A54E, got %s", cfg.SMTP.AccentColor)
+	}
+	if cfg.SMTP.SignatureName != "STI - Grupo Lipetral" {
+		t.Errorf("expected custom signature name, got %s", cfg.SMTP.SignatureName)
 	}
 }

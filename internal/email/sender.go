@@ -1,10 +1,12 @@
 package email
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"net/smtp"
 	"strings"
@@ -59,17 +61,105 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
-func BuildReceiptMessage(from, replyTo, toEmail, toName, docName, hashID, dateStr string) (string, string) {
-	subject := fmt.Sprintf("Confirmação de Leitura: %s", docName)
-	body := fmt.Sprintf("Olá, %s.\r\n\r\nConfirmamos que você leu e aceitou eletronicamente o documento corporativo:\r\n\r\nDocumento: %s\r\nData e Hora: %s\r\nCódigo Único (Hash): %s\r\n\r\nEste e-mail é enviado automaticamente, favor não responder.\r\n", toName, docName, dateStr, hashID)
+const receiptHTMLTemplate = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Confirmação de Leitura - {{.SignatureName}}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif;">
+    <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; margin-top: 20px; margin-bottom: 20px; border-collapse: collapse;">
+        <!-- Barra Superior -->
+        <tr>
+            <td style="background-color: {{.AccentColor}}; height: 10px; font-size: 0; line-height: 0;">&nbsp;</td>
+        </tr>
+        {{if .LogoURL}}<!-- Cabeçalho com Logo -->
+        <tr>
+            <td align="center" style="padding: 30px 20px 20px 20px; background-color: #ffffff;">
+                <img src="{{.LogoURL}}" alt="{{.SignatureName}}" width="180" style="display: block; border: 0;">
+            </td>
+        </tr>
+        {{end}}<!-- Conteúdo Principal -->
+        <tr>
+            <td style="padding: 20px 30px 30px 30px; color: #333333; font-size: 16px; line-height: 24px;">
+                <h2 style="color: #5cb85c; margin-top: 0; font-size: 22px;">Confirmação de Leitura Registrada</h2>
+                <p>Olá{{if .ToName}}, <strong>{{.ToName}}</strong>{{end}},</p>
+                <p>Confirmamos que você leu e aceitou eletronicamente o documento corporativo abaixo:</p>
+                
+                <!-- Caixa de Sucesso -->
+                <table width="100%" border="0" cellspacing="0" cellpadding="10" style="margin-top: 20px; margin-bottom: 20px; background-color: #f4fdf4; border-left: 4px solid #5cb85c;">
+                    <tr>
+                        <td style="font-size: 14px; color: #555555;">
+                            <strong>Documento:</strong> {{.DocName}}<br>
+                            <strong>Data/Hora da Assinatura:</strong> {{.DateStr}}<br>
+                            <strong>Código Único (Hash):</strong> <span style="font-family: monospace; word-break: break-all;">{{.HashID}}</span>
+                        </td>
+                    </tr>
+                </table>
 
-	msg := "From: " + from + "\r\n" +
+                <p style="margin-bottom: 0; color: #777777; font-size: 14px;">Atenciosamente,<br><strong>{{.SignatureName}}</strong></p>
+            </td>
+        </tr>
+        <!-- Barra Inferior -->
+        <tr>
+            <td style="background-color: {{.AccentColor}}; height: 10px; font-size: 0; line-height: 0;">&nbsp;</td>
+        </tr>
+        <!-- Rodapé -->
+        <tr>
+            <td align="center" style="padding: 15px; background-color: #eeeeee; color: #777777; font-size: 12px;">
+                Este é um e-mail automático enviado pelo sistema. Por favor, não responda.<br>
+                <span style="font-size: 12px; color: #999999;">ZENITH-SIGNER</span>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`
+
+var parsedReceiptTmpl = template.Must(template.New("receipt").Parse(receiptHTMLTemplate))
+
+type receiptTemplateData struct {
+	ToName        string
+	DocName       string
+	HashID        string
+	DateStr       string
+	LogoURL       string
+	AccentColor   string
+	SignatureName string
+}
+
+func BuildReceiptMessage(cfg config.SMTPConfig, toEmail, toName, docName, hashID, dateStr string) (string, string) {
+	subject := fmt.Sprintf("Confirmação de Leitura: %s", docName)
+
+	accentColor := strings.TrimSpace(cfg.AccentColor)
+	if accentColor == "" {
+		accentColor = "#8BC74B"
+	} else if !strings.HasPrefix(accentColor, "#") {
+		accentColor = "#" + accentColor
+	}
+
+	signatureName := strings.TrimSpace(cfg.SignatureName)
+	if signatureName == "" {
+		signatureName = "Zenith Signer"
+	}
+
+	var htmlBuf bytes.Buffer
+	_ = parsedReceiptTmpl.Execute(&htmlBuf, receiptTemplateData{
+		ToName:        strings.TrimSpace(toName),
+		DocName:       docName,
+		HashID:        hashID,
+		DateStr:       dateStr,
+		LogoURL:       strings.TrimSpace(cfg.LogoURL),
+		AccentColor:   accentColor,
+		SignatureName: signatureName,
+	})
+
+	msg := "From: " + cfg.FromEmail + "\r\n" +
 		"To: " + toEmail + "\r\n" +
-		"Reply-To: " + replyTo + "\r\n" +
+		"Reply-To: " + cfg.ReplyEmail + "\r\n" +
 		"Subject: " + subject + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
-		"Content-Type: text/plain; charset=UTF-8\r\n\r\n" +
-		body
+		"Content-Type: text/html; charset=UTF-8\r\n\r\n" +
+		htmlBuf.String()
 
 	return subject, msg
 }
@@ -83,7 +173,7 @@ func (s *office365Sender) SendReceipt(ctx context.Context, toEmail, toName, docN
 		return nil
 	}
 
-	_, msg := BuildReceiptMessage(s.cfg.FromEmail, s.cfg.ReplyEmail, toEmail, toName, docName, hashID, dateStr)
+	_, msg := BuildReceiptMessage(s.cfg, toEmail, toName, docName, hashID, dateStr)
 	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 
 	var lastErr error

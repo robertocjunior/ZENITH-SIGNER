@@ -45,14 +45,17 @@ type AuthConfig struct {
 }
 
 type SMTPConfig struct {
-	Host       string
-	Port       int
-	Username   string
-	Password   string
-	FromEmail  string
-	ReplyEmail string
-	MaxRetries int
-	RetryDelay time.Duration
+	Host          string
+	Port          int
+	Username      string
+	Password      string
+	FromEmail     string
+	ReplyEmail    string
+	MaxRetries    int
+	RetryDelay    time.Duration
+	LogoURL       string
+	AccentColor   string
+	SignatureName string
 }
 
 type LoggingConfig struct {
@@ -94,14 +97,17 @@ func Load() *Config {
 			AdminEmails:  parseListToMap(getEnv("ADMIN_EMAILS", "")),
 		},
 		SMTP: SMTPConfig{
-			Host:       getEnv("SMTP_HOST", "smtp.office365.com"),
-			Port:       getEnvAsInt("SMTP_PORT", 587),
-			Username:   getEnv("SMTP_USERNAME", ""),
-			Password:   getEnv("SMTP_PASSWORD", ""),
-			FromEmail:  getEnv("SMTP_FROM_EMAIL", ""),
-			ReplyEmail: getEnv("SMTP_REPLY_EMAIL", ""),
-			MaxRetries: getEnvAsInt("SMTP_MAX_RETRIES", 3),
-			RetryDelay: getEnvDuration("SMTP_RETRY_DELAY", 2*time.Second),
+			Host:          getEnv("SMTP_HOST", "smtp.office365.com"),
+			Port:          getEnvAsInt("SMTP_PORT", 587),
+			Username:      getEnv("SMTP_USERNAME", ""),
+			Password:      getEnv("SMTP_PASSWORD", ""),
+			FromEmail:     getEnv("SMTP_FROM_EMAIL", ""),
+			ReplyEmail:    getEnv("SMTP_REPLY_EMAIL", ""),
+			MaxRetries:    getEnvAsInt("SMTP_MAX_RETRIES", 3),
+			RetryDelay:    getEnvDuration("SMTP_RETRY_DELAY", 2*time.Second),
+			LogoURL:       strings.TrimSpace(getEnv("EMAIL_LOGO_URL", "")),
+			AccentColor:   normalizeHexColor(getEnv("EMAIL_ACCENT_COLOR", "#8BC74B"), "#8BC74B"),
+			SignatureName: getEnv("EMAIL_SIGNATURE_NAME", "Zenith Signer"),
 		},
 		Logging: LoggingConfig{
 			Level:  parseLogLevel(getEnv("LOG_LEVEL", "INFO")),
@@ -173,4 +179,15 @@ func parseLogLevel(level string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+func normalizeHexColor(val, fallback string) string {
+	clean := strings.TrimSpace(val)
+	if clean == "" {
+		return fallback
+	}
+	if !strings.HasPrefix(clean, "#") {
+		clean = "#" + clean
+	}
+	return clean
 }
