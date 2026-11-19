@@ -1,135 +1,115 @@
 # Doc Signer
 
-Serviço corporativo de confirmação e assinatura eletrônica de leitura de documentos integrado ao **Microsoft Entra ID (Azure AD)**, banco de dados SQLite com WAL e disparo de recibos via SMTP Office 365.
+**Confirmação de leitura e assinatura eletrônica corporativa, simples para o colaborador e auditável para a empresa.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker Ready](https://img.shields.io/badge/Docker-GHCR-2496ED?logo=docker&logoColor=white)](https://github.com/robertocjunior/doc-signer/pkgs/container/doc-signer)
+[![Go](https://img.shields.io/badge/Powered%20by-Go%201.22-00ADD8?logo=go&logoColor=white)](go.mod)
+
+O **Doc Signer** transforma qualquer documento da sua intranet, wiki corporativa (como o **Outline**) ou portal interno em um termo formal com **aceite registrado**, utilizando a conta **Microsoft 365** que o colaborador já usa no dia a dia.
 
 ---
 
-## 🏗️ Arquitetura e Estrutura de Diretórios
+## 🎯 Por que usar o Doc Signer?
 
-O projeto segue as convenções modernas do ecossistema Go (Standard Go Project Layout):
+Empresas precisam garantir que políticas internas, normas de segurança, comunicados de RH e procedimentos operacionais foram realmente lidos e aceitos pelos colaboradores — sem depender de planilhas manuais ou ferramentas caras de assinatura.
 
-```text
-doc-signer/
-├── cmd/
-│   └── server/
-│       └── main.go          # Ponto de entrada secundário
-├── internal/
-│   ├── app/
-│   │   └── app.go           # Inicialização, graceful shutdown e ciclo de vida
-│   ├── auth/
-│   │   ├── oauth.go         # Integração OAuth2 (Microsoft Entra ID) e Graph API
-│   │   └── oauth_test.go    # Testes unitários de autenticação
-│   ├── config/
-│   │   ├── config.go        # Leitura, parsing e validação de variáveis de ambiente
-│   │   └── config_test.go   # Testes de configuração e fallbacks
-│   ├── database/
-│   │   ├── sqlite.go        # Conexão SQLite (WAL, Busy Timeout, Concorrência)
-│   │   ├── repository.go    # Camada de acesso a dados (CRUD, consultas e filtros)
-│   │   ├── maintenance.go   # Rotinas de auto-reparo e manutenção 24/7
-│   │   └── repository_test.go
-│   ├── email/
-│   │   ├── sender.go        # Cliente SMTP (AUTH LOGIN, STARTTLS, retentativas exponenciais)
-│   │   └── sender_test.go   # Testes unitários do formatador de e-mail
-│   ├── handlers/
-│   │   ├── router.go        # Roteamento e registro de middlewares
-│   │   ├── middleware.go    # Middleware de recuperação de pânico, logs e headers
-│   │   ├── embed.go         # Endpoint /assinar (renderiza iframe)
-│   │   ├── auth.go          # Endpoints /auth/login e /auth/callback
-│   │   ├── sign.go          # Endpoint /confirmar (processa assinatura e hash)
-│   │   ├── admin.go         # Painel administrativo /admin com filtros
-│   │   ├── export.go        # Exportações /admin/export (CSV, XML, XLSX)
-│   │   ├── health.go        # Endpoints /healthz e /livez
-│   │   └── handlers_test.go # Testes de integração de endpoints
-│   ├── models/
-│   │   ├── models.go        # Estruturas de dados (SignatureRecord, UserProfile, etc.)
-│   │   └── models_test.go
-│   └── service/
-│       ├── signer.go        # Regras de negócio, geração de hash SHA-256 e idempotência
-│       └── signer_test.go   # Testes unitários do serviço de assinatura
-├── templates/
-│   ├── embed.html           # Template visual do iframe de confirmação
-│   └── admin.html           # Template visual do painel de administração
-├── Dockerfile               # Build multi-stage otimizado com HEALTHCHECK nativo
-├── docker-compose.yml       # Orquestração com política de restart e volumes persistentes
-├── .env.example             # Modelo seguro de variáveis de ambiente
-├── .gitignore               # Proteção contra commit de credenciais (.env) e dados
-├── .dockerignore            # Exclusão de arquivos sensíveis no build da imagem
-└── main.go                  # Ponto de entrada principal com templates embutidos
+- **Zero atrito para o colaborador:** Login automático com a conta corporativa **Microsoft Entra ID** (sem novas senhas).
+- **Rastreabilidade completa:** Captura automática de nome, e-mail, departamento, cargo, localização, data/hora, IP e geração de um **código verificador único (SHA-256)**.
+- **Recibo imediato por e-mail:** Assim que confirma a leitura, o colaborador recebe um comprovante oficial direto na caixa de entrada via **Office 365**.
+- **Sem assinaturas duplicadas:** O sistema identifica se o usuário já assinou o documento e exibe o comprovante já registrado.
+- **Pronto para auditoria:** Painel administrativo (`/admin`) com filtros instantâneos e exportação em **Excel (XLSX)**, **CSV** e **XML**.
+- **Leve e autônomo:** Roda em um único container Docker com banco embarcado de alta confiabilidade, pronto para operar 24/7.
+
+---
+
+## 💡 Como funciona na prática
+
+1. **Publique o documento:** Incorpore o widget do Doc Signer ao final de qualquer página da sua wiki ou intranet.
+2. **O colaborador confirma a leitura:** Com um clique, ele se autentica via Microsoft 365 e registra o aceite.
+3. **Comprovante e auditoria automáticos:** O sistema grava a assinatura, envia o recibo por e-mail e disponibiliza o registro no painel gerencial.
+
+---
+
+## 🧩 Incorporação em 1 minuto
+
+Adicione o bloco abaixo na página do documento (substituindo o identificador em `doc=`):
+
+```html
+<iframe
+  src="https://seu-dominio.com.br/assinar?doc=POLITICA-SEGURANCA-2026"
+  width="100%"
+  height="260"
+  frameborder="0"
+  style="border: none; border-radius: 8px;">
+</iframe>
 ```
 
 ---
 
-## 🛡️ Confiabilidade e Operação 24/7 (Auto-Reparo)
+## 📊 Painel Administrativo e Exportação
 
-O sistema foi preparado para rodar ininterruptamente sem intervenção manual:
+Gestores autorizados acessam `/admin` para acompanhar em tempo real quem já leu e assinou cada documento, podendo filtrar por:
 
-1. **Auto-Reparo e Manutenção de Banco (SQLite)**:
-   - **Modo WAL (Write-Ahead Logging)** com `_synchronous=NORMAL` para máxima performance e concorrência sem bloqueio de leituras.
-   - **Busy Timeout (5000ms)**: Previne o erro `database is locked` enfileirando requisições concorrentes.
-   - **Worker Periódico em Segundo Plano**:
-     - Executa `PRAGMA quick_check` e `PRAGMA integrity_check` para validar a saúde do banco.
-     - Executa `PRAGMA wal_checkpoint(PASSIVE)` para liberar páginas do log WAL de volta para o arquivo principal, evitando crescimento descontrolado do disco.
-     - Executa `PRAGMA optimize` para atualizar as estatísticas do planejador de consultas.
-2. **Panic Recovery Middleware**:
-   - Qualquer pânico inesperado em handlers HTTP é capturado imediatamente. A stack trace completa é registrada no log com `slog.Error` e o cliente recebe HTTP 500 amigável sem que o servidor caia.
-3. **Resiliência no Envio de E-mail (SMTP Office 365)**:
-   - Suporte a retentativas com backoff exponencial configurável (`SMTP_MAX_RETRIES` e `SMTP_RETRY_DELAY`) em caso de instabilidades temporárias de rede.
-   - Execução em background desacoplada da resposta HTTP do usuário.
-4. **Graceful Shutdown**:
-   - Intercepta `SIGTERM` e `SIGINT`.
-   - Conclui as requisições em trânsito com timeout configurável (`SHUTDOWN_TIMEOUT`).
-   - Realiza o checkpoint final do banco antes de finalizar.
-5. **Observabilidade e Healthchecks**:
-   - `GET /healthz`: Verifica integridade do SQLite e conectividade, retornando status detalhado e uptime em JSON.
-   - `GET /livez`: Verificação leve de liveness para o Docker e orquestradores.
-   - **Logs Estruturados**: Utiliza `log/slog` (nativo do Go) suportando saídas em texto legível ou JSON estruturado (`LOG_FORMAT=json`).
+- **Documento**
+- **Colaborador / E-mail**
+- **Departamento e Cargo**
+- **Código Hash ou Endereço IP**
+
+Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`)**, **CSV** ou **XML**.
 
 ---
 
-## 🚀 Como Executar
+## 🚀 Implantação Rápida (Docker)
 
-### 1. Pré-requisitos
-Copie o arquivo `.env.example` para `.env` e configure as credenciais:
-```bash
-cp .env.example .env
-```
+1. Copie o modelo de configuração e preencha suas credenciais do Microsoft Entra ID e SMTP:
+   ```bash
+   cp .env.example .env
+   ```
 
-### 2. Rodando Localmente
+2. Suba o serviço com Docker Compose (disponível na porta `8087`):
+   ```bash
+   docker compose pull
+   docker compose up -d
+   ```
+
+> **Dica:** No App Registration do Microsoft Entra ID, cadastre `<BASE_URL>/auth/callback` como URI de redirecionamento.
+
+<details>
+<summary>⚙️ Referência de configuração e endpoints (clique para expandir)</summary>
+
+### Endpoints disponíveis
+- `GET /assinar?doc=<id>` — Widget de confirmação para `<iframe>`
+- `GET /auth/login` e `GET /auth/callback` — Fluxo de login Microsoft Entra ID
+- `POST /confirmar` — Registro da assinatura
+- `GET /admin` — Painel gerencial (restrito a `ADMIN_EMAILS`)
+- `GET /admin/export?format=xlsx|csv|xml` — Exportação de relatórios
+- `GET /healthz` e `GET /livez` — Monitoramento de saúde do serviço
+
+### Principais variáveis de ambiente (`.env`)
+| Variável | Descrição | Padrão |
+| :--- | :--- | :--- |
+| `BASE_URL` | URL pública da aplicação | `http://localhost:8080` |
+| `PORT` | Porta interna do servidor | `8080` |
+| `DB_PATH` | Caminho do banco SQLite | `/app/data/signatures.db` |
+| `AZURE_TENANT_ID` | Tenant ID do Microsoft Entra ID | `common` |
+| `AZURE_CLIENT_ID` | Client ID da aplicação no Azure | — |
+| `AZURE_CLIENT_SECRET` | Client Secret da aplicação no Azure | — |
+| `ADMIN_EMAILS` | E-mails de administradores (separados por vírgula) | — |
+| `SMTP_HOST` / `SMTP_PORT` | Servidor e porta SMTP | `smtp.office365.com` / `587` |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | Credenciais de envio SMTP | — |
+| `SMTP_FROM_EMAIL` / `SMTP_REPLY_EMAIL` | Remetente e e-mail de resposta dos recibos | — |
+
+Para rodar localmente com Go 1.22+ (`CGO_ENABLED=1`) ou executar os testes:
 ```bash
 go run .
-```
-
-### 3. Rodando com Docker Compose
-
-Para baixar e rodar a imagem diretamente do GitHub Container Registry (GHCR):
-```bash
-docker compose pull
-docker compose up -d
-```
-
-Ou para compilar localmente:
-```bash
-docker compose up -d --build
-```
-
----
-
-## 📦 CI/CD e GitHub Container Registry (GHCR)
-
-O repositório possui uma pipeline automatizada via GitHub Actions ([.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml)):
-
-- **Gatilho Inteligente**: Disparado automaticamente em commits na branch `main`.
-- **Filtro de Arquivos (`paths-ignore`)**: Ignora alterações em arquivos Markdown (`*.md`, `README.md`), documentações (`docs/**`) e arquivos de exemplo/licença para não gerar builds desnecessários.
-- **Validação de Testes**: Executa toda a suíte de testes antes de iniciar o empacotamento do container.
-- **Cache de Camadas**: Usa cache do Docker Buildx no GitHub Actions para compilações ultra-rápidas.
-- **Publicação**: Publica a imagem em `ghcr.io/robertocjunior/doc-signer:latest` e com a tag do commit (`sha-<hash>`).
-
----
-
-## 🧪 Executando os Testes
-
-Para executar toda a suíte de testes com validação de corrida de concorrência (`-race`):
-```bash
 go test -v -race ./...
 ```
 
+</details>
+
+---
+
+## 📄 Licença
+
+Distribuído sob a licença **MIT**. Consulte [LICENSE](LICENSE) para mais detalhes.
