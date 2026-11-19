@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"doc-signer/internal/service"
+	"zenith-signer/internal/service"
 )
 
 type SignHandler struct {

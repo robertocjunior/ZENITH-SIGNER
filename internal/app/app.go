@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"doc-signer/internal/auth"
-	"doc-signer/internal/config"
-	"doc-signer/internal/database"
-	"doc-signer/internal/email"
-	"doc-signer/internal/handlers"
-	"doc-signer/internal/service"
+	"zenith-signer/internal/auth"
+	"zenith-signer/internal/config"
+	"zenith-signer/internal/database"
+	"zenith-signer/internal/email"
+	"zenith-signer/internal/handlers"
+	"zenith-signer/internal/service"
 )
 
 // RunWithTemplates initializes all dependencies and runs the HTTP server with 24/7 reliability patterns.
@@ -27,7 +27,7 @@ func RunWithTemplates(templateFS fs.FS) {
 	slog.SetDefault(logger)
 
 	startTime := time.Now()
-	logger.Info("starting doc-signer service",
+	logger.Info("starting zenith-signer service",
 		slog.String("port", cfg.Server.Port),
 		slog.String("base_url", cfg.Server.BaseURL),
 		slog.String("db_path", cfg.Database.Path),

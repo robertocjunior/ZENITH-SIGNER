@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"doc-signer/internal/database"
-	"doc-signer/internal/email"
-	"doc-signer/internal/models"
+	"zenith-signer/internal/database"
+	"zenith-signer/internal/email"
+	"zenith-signer/internal/models"
 )
 
 // SignRequest contains input data for registering a document signature.

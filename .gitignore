@@ -1,5 +1,5 @@
 # Binaries and executables
-doc-signer
+zenith-signer
 *.exe
 *.exe~
 *.dll

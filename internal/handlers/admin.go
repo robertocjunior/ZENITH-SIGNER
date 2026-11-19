@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"strings"
 
-	"doc-signer/internal/auth"
-	"doc-signer/internal/database"
-	"doc-signer/internal/models"
+	"zenith-signer/internal/auth"
+	"zenith-signer/internal/database"
+	"zenith-signer/internal/models"
 )
 
 type AdminHandler struct {

@@ -13,7 +13,7 @@ RUN go mod download
 COPY . .
 
 # Compila o binário estático/otimizado com CGO ativado para SQLite
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o doc-signer .
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o zenith-signer .
 
 # Etapa 2: Runner de produção enxuto e seguro para rodar 24/7
 FROM alpine:3.19
@@ -23,7 +23,7 @@ ENV TZ=America/Sao_Paulo
 
 WORKDIR /app
 
-COPY --from=builder /app/doc-signer /app/doc-signer
+COPY --from=builder /app/zenith-signer /app/zenith-signer
 
 RUN mkdir -p /app/data
 
@@ -33,4 +33,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:8080/livez > /dev/null || exit 1
 
-CMD ["/app/doc-signer"]
+CMD ["/app/zenith-signer"]

@@ -14,7 +14,7 @@ data/
 *.sqlite3
 
 # Compiled binaries
-doc-signer
+zenith-signer
 *.exe
 
 # IDE and OS files

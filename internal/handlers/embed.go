@@ -5,8 +5,8 @@ import (
 	"html/template"
 	"net/http"
 
-	"doc-signer/internal/models"
-	"doc-signer/internal/service"
+	"zenith-signer/internal/models"
+	"zenith-signer/internal/service"
 )
 
 type EmbedHandler struct {

@@ -1,8 +1,8 @@
 services:
-  doc-signer:
-    image: ghcr.io/robertocjunior/doc-signer:latest
+  zenith-signer:
+    image: ghcr.io/robertocjunior/zenith-signer:latest
     build: .
-    container_name: doc_signer
+    container_name: zenith_signer
     restart: unless-stopped
     ports:
       - "8087:8080"

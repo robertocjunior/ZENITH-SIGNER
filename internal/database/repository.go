@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"doc-signer/internal/models"
+	"zenith-signer/internal/models"
 )
 
 // Repository defines data access operations for signatures.

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"doc-signer/internal/app"
+	"zenith-signer/internal/app"
 )
 
 func main() {

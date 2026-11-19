@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"doc-signer/internal/config"
-	"doc-signer/internal/models"
+	"zenith-signer/internal/config"
+	"zenith-signer/internal/models"
 )
 
 func setupTestDB(t *testing.T) Repository {

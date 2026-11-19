@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"doc-signer/internal/config"
+	"zenith-signer/internal/config"
 )
 
 func TestBuildReceiptMessage(t *testing.T) {

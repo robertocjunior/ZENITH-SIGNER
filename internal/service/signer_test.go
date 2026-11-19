@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"doc-signer/internal/config"
-	"doc-signer/internal/database"
+	"zenith-signer/internal/config"
+	"zenith-signer/internal/database"
 )
 
 type dummyEmailSender struct {

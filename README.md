@@ -1,16 +1,22 @@
-# Doc Signer
+# ZENITH-SIGNER
+
+<div align="center">
+  <img alt="Zenith Signer Logo" src="./docs/zenith-signer.svg">
+  <br>
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-GHCR-2496ED?style=for-the-badge&logo=docker&logoColor=white">
+  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge">
+</div>
+
+<br>
 
 **Confirmação de leitura e assinatura eletrônica corporativa, simples para o colaborador e auditável para a empresa.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Docker Ready](https://img.shields.io/badge/Docker-GHCR-2496ED?logo=docker&logoColor=white)](https://github.com/robertocjunior/doc-signer/pkgs/container/doc-signer)
-[![Go](https://img.shields.io/badge/Powered%20by-Go%201.22-00ADD8?logo=go&logoColor=white)](go.mod)
-
-O **Doc Signer** transforma qualquer documento da sua intranet, wiki corporativa (como o **Outline**) ou portal interno em um termo formal com **aceite registrado**, utilizando a conta **Microsoft 365** que o colaborador já usa no dia a dia.
+O **Zenith Signer** transforma qualquer documento da sua intranet, wiki corporativa (como o **Outline**) ou portal interno em um termo formal com **aceite registrado**, utilizando a conta **Microsoft 365** que o colaborador já usa no dia a dia.
 
 ---
 
-## 🎯 Por que usar o Doc Signer?
+## 🎯 Por que usar o Zenith Signer?
 
 Empresas precisam garantir que políticas internas, normas de segurança, comunicados de RH e procedimentos operacionais foram realmente lidos e aceitos pelos colaboradores — sem depender de planilhas manuais ou ferramentas caras de assinatura.
 
@@ -25,7 +31,7 @@ Empresas precisam garantir que políticas internas, normas de segurança, comuni
 
 ## 💡 Como funciona na prática
 
-1. **Publique o documento:** Incorpore o widget do Doc Signer ao final de qualquer página da sua wiki ou intranet.
+1. **Publique o documento:** Incorpore o widget do Zenith Signer ao final de qualquer página da sua wiki ou intranet.
 2. **O colaborador confirma a leitura:** Com um clique, ele se autentica via Microsoft 365 e registra o aceite.
 3. **Comprovante e auditoria automáticos:** O sistema grava a assinatura, envia o recibo por e-mail e disponibiliza o registro no painel gerencial.
 

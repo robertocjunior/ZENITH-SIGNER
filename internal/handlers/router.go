@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	"doc-signer/internal/auth"
-	"doc-signer/internal/config"
-	"doc-signer/internal/database"
-	"doc-signer/internal/service"
+	"zenith-signer/internal/auth"
+	"zenith-signer/internal/config"
+	"zenith-signer/internal/database"
+	"zenith-signer/internal/service"
 )
 
 // RouterParams encapsulates dependencies required to construct the HTTP routing tree.

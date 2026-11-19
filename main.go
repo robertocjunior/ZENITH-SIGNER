@@ -3,7 +3,7 @@ package main
 import (
 	"embed"
 
-	"doc-signer/internal/app"
+	"zenith-signer/internal/app"
 )
 
 //go:embed templates/*

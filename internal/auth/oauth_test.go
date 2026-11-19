@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"doc-signer/internal/config"
+	"zenith-signer/internal/config"
 )
 
 func TestAuthService(t *testing.T) {

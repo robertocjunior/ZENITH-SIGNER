@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"doc-signer/internal/config"
+	"zenith-signer/internal/config"
 
 	_ "github.com/mattn/go-sqlite3"
 )

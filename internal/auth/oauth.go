@@ -8,8 +8,8 @@ import (
 	"io"
 	"strings"
 
-	"doc-signer/internal/config"
-	"doc-signer/internal/models"
+	"zenith-signer/internal/config"
+	"zenith-signer/internal/models"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/microsoft"

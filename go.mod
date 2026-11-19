@@ -1,4 +1,4 @@
-module doc-signer
+module zenith-signer
 
 go 1.22
 

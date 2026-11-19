@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"doc-signer/internal/database"
-	"doc-signer/internal/models"
+	"zenith-signer/internal/database"
+	"zenith-signer/internal/models"
 )
 
 type HealthHandler struct {

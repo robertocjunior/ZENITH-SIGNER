@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"doc-signer/internal/config"
+	"zenith-signer/internal/config"
 )
 
 // Sender defines operations for sending emails.

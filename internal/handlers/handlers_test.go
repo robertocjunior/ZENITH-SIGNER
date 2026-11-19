@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"doc-signer/internal/auth"
-	"doc-signer/internal/config"
-	"doc-signer/internal/database"
-	"doc-signer/internal/models"
-	"doc-signer/internal/service"
+	"zenith-signer/internal/auth"
+	"zenith-signer/internal/config"
+	"zenith-signer/internal/database"
+	"zenith-signer/internal/models"
+	"zenith-signer/internal/service"
 )
 
 type mockEmailSender struct{}
