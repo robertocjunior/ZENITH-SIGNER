@@ -46,7 +46,10 @@
         <h1>{{.AppName}} — Auditoria de Assinaturas</h1>
         <small style="color: #605e5c;">Admin: {{.UserEmail}} | Registros encontrados: <strong>{{.Count}}</strong></small>
       </div>
-      <a href="/admin" class="btn btn-secondary">↻ Limpar Filtros</a>
+      <div class="btn-group">
+        <a href="/admin" class="btn btn-secondary">↻ Limpar Filtros</a>
+        <a href="/auth/logout" class="btn btn-secondary">Sair</a>
+      </div>
     </div>
 
     <div class="kpi-grid">

@@ -102,6 +102,7 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `AZURE_CLIENT_ID` | Client ID da aplicação no Azure | — |
 | `AZURE_CLIENT_SECRET` | Client Secret da aplicação no Azure | — |
 | `ADMIN_EMAILS` | E-mails de administradores (separados por vírgula) | — |
+| `SESSION_SECRET` | Chave secreta HMAC para assinatura dos cookies de sessão | *(aleatória)* |
 | `SMTP_HOST` / `SMTP_PORT` | Servidor e porta SMTP | `smtp.office365.com` / `587` |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | Credenciais de envio SMTP | — |
 | `SMTP_FROM_EMAIL` / `SMTP_REPLY_EMAIL` | Remetente e e-mail de resposta dos recibos | — |

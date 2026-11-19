@@ -37,12 +37,13 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
-	TenantID     string
-	ClientID     string
-	ClientSecret string
-	RedirectURL  string
-	GraphUserURL string
-	AdminEmails  map[string]bool
+	TenantID      string
+	ClientID      string
+	ClientSecret  string
+	RedirectURL   string
+	GraphUserURL  string
+	AdminEmails   map[string]bool
+	SessionSecret string
 }
 
 type SMTPConfig struct {
@@ -92,12 +93,13 @@ func Load() *Config {
 			ConnMaxLifetime: getEnvDuration("DB_CONN_MAX_LIFETIME", 1*time.Hour),
 		},
 		Auth: AuthConfig{
-			TenantID:     getEnv("AZURE_TENANT_ID", "common"),
-			ClientID:     getEnv("AZURE_CLIENT_ID", ""),
-			ClientSecret: getEnv("AZURE_CLIENT_SECRET", ""),
-			RedirectURL:  baseURL + "/auth/callback",
-			GraphUserURL: getEnv("GRAPH_USER_URL", "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName,department,jobTitle,officeLocation"),
-			AdminEmails:  parseListToMap(getEnv("ADMIN_EMAILS", "")),
+			TenantID:      getEnv("AZURE_TENANT_ID", "common"),
+			ClientID:      getEnv("AZURE_CLIENT_ID", ""),
+			ClientSecret:  getEnv("AZURE_CLIENT_SECRET", ""),
+			RedirectURL:   baseURL + "/auth/callback",
+			GraphUserURL:  getEnv("GRAPH_USER_URL", "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName,department,jobTitle,officeLocation"),
+			AdminEmails:   parseListToMap(getEnv("ADMIN_EMAILS", "")),
+			SessionSecret: getEnv("SESSION_SECRET", ""),
 		},
 		SMTP: SMTPConfig{
 			Host:          getEnv("SMTP_HOST", "smtp.office365.com"),

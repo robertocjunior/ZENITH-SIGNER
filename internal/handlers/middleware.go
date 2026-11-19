@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"log/slog"
 	"net/http"
@@ -154,24 +157,117 @@ func extractClientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
-func getCookieValue(r *http.Request, name string) string {
-	c, err := r.Cookie(name)
-	if err == nil {
-		return c.Value
-	}
-	return ""
+var sessionCookieNames = []string{
+	"user_email",
+	"user_name",
+	"user_department",
+	"user_job",
+	"user_location",
 }
 
-func setSessionCookie(w http.ResponseWriter, name, value string) {
-	http.SetCookie(w, &http.Cookie{
+// SessionManager signs and verifies session cookies with HMAC-SHA256 and applies HTTPS/iframe attributes.
+type SessionManager struct {
+	secret  []byte
+	isHTTPS bool
+}
+
+// NewSessionManager creates a SessionManager using secret (or a random 32-byte key if empty).
+func NewSessionManager(secret, baseURL string) *SessionManager {
+	var key []byte
+	if strings.TrimSpace(secret) != "" {
+		key = []byte(secret)
+	} else {
+		key = make([]byte, 32)
+		_, _ = rand.Read(key)
+	}
+
+	isHTTPS := strings.HasPrefix(strings.ToLower(strings.TrimSpace(baseURL)), "https://")
+	return &SessionManager{
+		secret:  key,
+		isHTTPS: isHTTPS,
+	}
+}
+
+func (sm *SessionManager) signValue(value string) string {
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(value))
+	mac := hmac.New(sha256.New, sm.secret)
+	mac.Write([]byte(encoded))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	return encoded + "." + sig
+}
+
+func (sm *SessionManager) verifyValue(raw string) (string, bool) {
+	parts := strings.SplitN(raw, ".", 2)
+	if len(parts) != 2 {
+		return "", false
+	}
+
+	expectedMac := hmac.New(sha256.New, sm.secret)
+	expectedMac.Write([]byte(parts[0]))
+	expectedSig := expectedMac.Sum(nil)
+
+	providedSig, err := hex.DecodeString(parts[1])
+	if err != nil || !hmac.Equal(providedSig, expectedSig) {
+		return "", false
+	}
+
+	decoded, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return "", false
+	}
+	return string(decoded), true
+}
+
+// SignedCookie builds a signed *http.Cookie (useful for handlers and tests).
+func (sm *SessionManager) SignedCookie(name, value string) *http.Cookie {
+	sameSite := http.SameSiteLaxMode
+	if sm.isHTTPS {
+		sameSite = http.SameSiteNoneMode
+	}
+
+	return &http.Cookie{
 		Name:     name,
-		Value:    value,
+		Value:    sm.signValue(value),
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
+		Secure:   sm.isHTTPS,
+		SameSite: sameSite,
 		Expires:  time.Now().Add(24 * time.Hour * 30),
-	})
+	}
+}
+
+func (sm *SessionManager) SetCookie(w http.ResponseWriter, name, value string) {
+	http.SetCookie(w, sm.SignedCookie(name, value))
+}
+
+func (sm *SessionManager) GetCookie(r *http.Request, name string) string {
+	c, err := r.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	val, ok := sm.verifyValue(c.Value)
+	if !ok {
+		return ""
+	}
+	return val
+}
+
+func (sm *SessionManager) ClearSession(w http.ResponseWriter) {
+	sameSite := http.SameSiteLaxMode
+	if sm.isHTTPS {
+		sameSite = http.SameSiteNoneMode
+	}
+	for _, name := range sessionCookieNames {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   sm.isHTTPS,
+			SameSite: sameSite,
+		})
+	}
 }
 
 func extractDocParam(r *http.Request) string {

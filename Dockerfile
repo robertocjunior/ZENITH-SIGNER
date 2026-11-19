@@ -18,14 +18,17 @@ RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o zenith-signer .
 # Etapa 2: Runner de produção enxuto e seguro para rodar 24/7
 FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates tzdata sqlite-libs wget
+RUN apk add --no-cache ca-certificates tzdata sqlite-libs wget && \
+    addgroup -S appgroup && adduser -S -G appgroup -H appuser
 ENV TZ=America/Sao_Paulo
 
 WORKDIR /app
 
 COPY --from=builder /app/zenith-signer /app/zenith-signer
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data && chown -R appuser:appgroup /app
+
+USER appuser
 
 EXPOSE 8080
 

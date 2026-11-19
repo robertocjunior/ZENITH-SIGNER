@@ -47,6 +47,8 @@ func setupTestRouter(t *testing.T) (http.Handler, database.Repository) {
 	authSvc := auth.NewService(authCfg)
 	signerSvc := service.NewSignerService(repo, &mockEmailSender{}, logger)
 
+	t.Setenv("SESSION_SECRET", "test-session-secret")
+
 	rootFS := os.DirFS("../..")
 	router, err := NewRouter(RouterParams{
 		Config:     config.Load(),
@@ -159,9 +161,21 @@ func TestAdminAuthAndExport(t *testing.T) {
 		SignedAt:     time.Now(),
 	})
 
+	sm := NewSessionManager("test-session-secret", "http://localhost:8080")
+
+	// 0. Tampered/unsigned cookie accessing /admin -> redirect to login
+	reqTampered := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	reqTampered.AddCookie(&http.Cookie{Name: "user_email", Value: "admin@empresa.com"})
+	recTampered := httptest.NewRecorder()
+	router.ServeHTTP(recTampered, reqTampered)
+
+	if recTampered.Code != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect for unsigned/tampered cookie, got %d", recTampered.Code)
+	}
+
 	// 1. Unauthorized user accessing /admin -> 403 Forbidden
 	reqUnauth := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	reqUnauth.AddCookie(&http.Cookie{Name: "user_email", Value: "normal_user@empresa.com"})
+	reqUnauth.AddCookie(sm.SignedCookie("user_email", "normal_user@empresa.com"))
 	recUnauth := httptest.NewRecorder()
 	router.ServeHTTP(recUnauth, reqUnauth)
 
@@ -171,7 +185,7 @@ func TestAdminAuthAndExport(t *testing.T) {
 
 	// 2. Authorized admin accessing /admin -> 200 OK
 	reqAdmin := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	reqAdmin.AddCookie(&http.Cookie{Name: "user_email", Value: "admin@empresa.com"})
+	reqAdmin.AddCookie(sm.SignedCookie("user_email", "admin@empresa.com"))
 	recAdmin := httptest.NewRecorder()
 	router.ServeHTTP(recAdmin, reqAdmin)
 
@@ -181,7 +195,7 @@ func TestAdminAuthAndExport(t *testing.T) {
 
 	// 3. Export CSV
 	reqCSV := httptest.NewRequest(http.MethodGet, "/admin/export?format=csv", nil)
-	reqCSV.AddCookie(&http.Cookie{Name: "user_email", Value: "admin@empresa.com"})
+	reqCSV.AddCookie(sm.SignedCookie("user_email", "admin@empresa.com"))
 	recCSV := httptest.NewRecorder()
 	router.ServeHTTP(recCSV, reqCSV)
 
@@ -197,7 +211,7 @@ func TestAdminAuthAndExport(t *testing.T) {
 
 	// 4. Export XLSX
 	reqXLSX := httptest.NewRequest(http.MethodGet, "/admin/export?format=xlsx", nil)
-	reqXLSX.AddCookie(&http.Cookie{Name: "user_email", Value: "admin@empresa.com"})
+	reqXLSX.AddCookie(sm.SignedCookie("user_email", "admin@empresa.com"))
 	recXLSX := httptest.NewRecorder()
 	router.ServeHTTP(recXLSX, reqXLSX)
 

@@ -44,12 +44,14 @@ func NewRouter(p RouterParams) (http.Handler, error) {
 		return nil, fmt.Errorf("failed to parse templates/admin.html: %w", err)
 	}
 
+	sessionMgr := NewSessionManager(p.Config.Auth.SessionSecret, p.Config.Server.BaseURL)
+
 	homeHandler := NewHomeHandler(p.Repo, homeTmpl, p.Config.Server.AppName, p.Logger)
-	embedHandler := NewEmbedHandler(p.SignerSvc, embedTmpl)
-	authHandler := NewAuthHandler(p.AuthSvc, p.Logger)
-	signHandler := NewSignHandler(p.SignerSvc, p.Logger)
-	adminHandler := NewAdminHandler(p.Repo, p.AuthSvc, adminTmpl, p.Config.Server.AppName, p.Logger)
-	exportHandler := NewExportHandler(p.Repo, p.AuthSvc, p.Logger)
+	embedHandler := NewEmbedHandler(p.SignerSvc, embedTmpl, sessionMgr)
+	authHandler := NewAuthHandler(p.AuthSvc, sessionMgr, p.Logger)
+	signHandler := NewSignHandler(p.SignerSvc, sessionMgr, p.Logger)
+	adminHandler := NewAdminHandler(p.Repo, p.AuthSvc, adminTmpl, p.Config.Server.AppName, sessionMgr, p.Logger)
+	exportHandler := NewExportHandler(p.Repo, p.AuthSvc, sessionMgr, p.Logger)
 	healthHandler := NewHealthHandler(p.DB, p.StartTime)
 
 	mux := http.NewServeMux()
@@ -59,6 +61,7 @@ func NewRouter(p RouterParams) (http.Handler, error) {
 	mux.Handle("/assinar", embedHandler)
 	mux.HandleFunc("/auth/login", authHandler.HandleLogin)
 	mux.HandleFunc("/auth/callback", authHandler.HandleCallback)
+	mux.HandleFunc("/auth/logout", authHandler.HandleLogout)
 	mux.Handle("/confirmar", signHandler)
 
 	// Admin and reporting routes

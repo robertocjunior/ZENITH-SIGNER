@@ -11,12 +11,14 @@ import (
 
 type SignHandler struct {
 	signerSvc service.SignerService
+	session   *SessionManager
 	logger    *slog.Logger
 }
 
-func NewSignHandler(signerSvc service.SignerService, logger *slog.Logger) *SignHandler {
+func NewSignHandler(signerSvc service.SignerService, session *SessionManager, logger *slog.Logger) *SignHandler {
 	return &SignHandler{
 		signerSvc: signerSvc,
+		session:   session,
 		logger:    logger,
 	}
 }
@@ -33,7 +35,7 @@ func (h *SignHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userEmail := getCookieValue(r, "user_email")
+	userEmail := h.session.GetCookie(r, "user_email")
 	if userEmail == "" {
 		http.Redirect(w, r, fmt.Sprintf("/auth/login?doc=%s&return=/assinar%%3Fdoc%%3D%s", doc, doc), http.StatusSeeOther)
 		return
@@ -42,10 +44,10 @@ func (h *SignHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req := service.SignRequest{
 		Doc:            doc,
 		UserEmail:      userEmail,
-		UserName:       getCookieValue(r, "user_name"),
-		Department:     getCookieValue(r, "user_department"),
-		JobTitle:       getCookieValue(r, "user_job"),
-		OfficeLocation: getCookieValue(r, "user_location"),
+		UserName:       h.session.GetCookie(r, "user_name"),
+		Department:     h.session.GetCookie(r, "user_department"),
+		JobTitle:       h.session.GetCookie(r, "user_job"),
+		OfficeLocation: h.session.GetCookie(r, "user_location"),
 		IP:             extractClientIP(r),
 		UserAgent:      r.UserAgent(),
 	}

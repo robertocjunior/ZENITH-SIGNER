@@ -20,10 +20,11 @@ type AdminHandler struct {
 	authSvc auth.Service
 	tmpl    *template.Template
 	appName string
+	session *SessionManager
 	logger  *slog.Logger
 }
 
-func NewAdminHandler(repo database.Repository, authSvc auth.Service, tmpl *template.Template, appName string, logger *slog.Logger) *AdminHandler {
+func NewAdminHandler(repo database.Repository, authSvc auth.Service, tmpl *template.Template, appName string, session *SessionManager, logger *slog.Logger) *AdminHandler {
 	if strings.TrimSpace(appName) == "" {
 		appName = "Zenith Signer"
 	}
@@ -32,12 +33,13 @@ func NewAdminHandler(repo database.Repository, authSvc auth.Service, tmpl *templ
 		authSvc: authSvc,
 		tmpl:    tmpl,
 		appName: appName,
+		session: session,
 		logger:  logger,
 	}
 }
 
 func (h *AdminHandler) checkAdminAuth(w http.ResponseWriter, r *http.Request) (string, bool) {
-	email := getCookieValue(r, "user_email")
+	email := h.session.GetCookie(r, "user_email")
 	if email == "" {
 		http.Redirect(w, r, "/auth/login?return="+url.QueryEscape(r.RequestURI), http.StatusSeeOther)
 		return "", false

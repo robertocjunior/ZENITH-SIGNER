@@ -21,19 +21,21 @@ import (
 type ExportHandler struct {
 	repo    database.Repository
 	authSvc auth.Service
+	session *SessionManager
 	logger  *slog.Logger
 }
 
-func NewExportHandler(repo database.Repository, authSvc auth.Service, logger *slog.Logger) *ExportHandler {
+func NewExportHandler(repo database.Repository, authSvc auth.Service, session *SessionManager, logger *slog.Logger) *ExportHandler {
 	return &ExportHandler{
 		repo:    repo,
 		authSvc: authSvc,
+		session: session,
 		logger:  logger,
 	}
 }
 
 func (h *ExportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	email := strings.ToLower(getCookieValue(r, "user_email"))
+	email := strings.ToLower(h.session.GetCookie(r, "user_email"))
 	if email == "" || !h.authSvc.IsAdmin(email) {
 		h.logger.Warn("admin export access denied",
 			slog.String("email", email),

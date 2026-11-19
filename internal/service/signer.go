@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"zenith-signer/internal/database"
@@ -32,12 +33,14 @@ type SignerService interface {
 	GenerateHash(doc, email string, timestamp time.Time, ip, ua string) string
 	GetSignature(ctx context.Context, doc, email string) (*models.SignatureRecord, error)
 	SignDocument(ctx context.Context, req SignRequest) (*models.SignatureRecord, error)
+	Wait(ctx context.Context) error
 }
 
 type signerService struct {
 	repo        database.Repository
 	emailSender email.Sender
 	logger      *slog.Logger
+	wg          sync.WaitGroup
 }
 
 // NewSignerService creates a new signature business logic service.
@@ -121,7 +124,9 @@ func (s *signerService) SignDocument(ctx context.Context, req SignRequest) (*mod
 	)
 
 	// Asynchronous receipt dispatch with detached context and timeout
+	s.wg.Add(1)
 	go func(toEmail, toName, docName, hash string, signedTime time.Time) {
+		defer s.wg.Done()
 		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
@@ -136,4 +141,20 @@ func (s *signerService) SignDocument(ctx context.Context, req SignRequest) (*mod
 	}(record.UserEmail, record.UserName, record.DocumentName, record.HashID, record.SignedAt)
 
 	return record, nil
+}
+
+// Wait blocks until all in-flight background email tasks finish or ctx expires.
+func (s *signerService) Wait(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

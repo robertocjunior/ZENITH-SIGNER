@@ -128,6 +128,11 @@ func RunWithTemplates(templateFS fs.FS) {
 			_ = server.Close()
 		}
 
+		// Wait for any in-flight background receipt emails to complete
+		if err := signerSvc.Wait(shutdownCtx); err != nil {
+			logger.Warn("background email tasks did not finish before shutdown timeout", slog.String("error", err.Error()))
+		}
+
 		// Flush WAL pages to disk before termination
 		flushCtx, flushCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := database.CheckpointWAL(flushCtx, db); err != nil {

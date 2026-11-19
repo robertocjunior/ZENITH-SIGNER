@@ -12,12 +12,14 @@ import (
 type EmbedHandler struct {
 	signerSvc service.SignerService
 	tmpl      *template.Template
+	session   *SessionManager
 }
 
-func NewEmbedHandler(signerSvc service.SignerService, tmpl *template.Template) *EmbedHandler {
+func NewEmbedHandler(signerSvc service.SignerService, tmpl *template.Template, session *SessionManager) *EmbedHandler {
 	return &EmbedHandler{
 		signerSvc: signerSvc,
 		tmpl:      tmpl,
+		session:   session,
 	}
 }
 
@@ -28,9 +30,9 @@ func (h *EmbedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userEmail := getCookieValue(r, "user_email")
-	userName := getCookieValue(r, "user_name")
-	userDept := getCookieValue(r, "user_department")
+	userEmail := h.session.GetCookie(r, "user_email")
+	userName := h.session.GetCookie(r, "user_name")
+	userDept := h.session.GetCookie(r, "user_department")
 	isLogged := userEmail != ""
 
 	var signedRecord *models.SignatureRecord
