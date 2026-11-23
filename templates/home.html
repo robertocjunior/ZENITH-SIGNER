@@ -51,7 +51,7 @@
         {{if .Record}}
         <div class="result-box result-valid">
           <div class="result-title">✓ Assinatura Autêntica e Registrada</div>
-          <div class="meta-row"><strong>Documento:</strong> {{.Record.DocumentName}}</div>
+          <div class="meta-row"><strong>Documento:</strong> {{if .Record.DocumentTitle}}{{.Record.DocumentTitle}} <span style="color:#8a8886;">({{.Record.DocumentName}})</span>{{else}}{{.Record.DocumentName}}{{end}}</div>
           <div class="meta-row"><strong>Colaborador:</strong> {{.Record.UserName}}</div>
           {{if .Record.Department}}<div class="meta-row"><strong>Setor:</strong> {{.Record.Department}}</div>{{end}}
           <div class="meta-row"><strong>Data/Hora:</strong> {{.Record.SignedAt.Format "02/01/2006 15:04:05"}}</div>

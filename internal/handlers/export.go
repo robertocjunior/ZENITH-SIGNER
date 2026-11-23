@@ -92,13 +92,14 @@ func (h *ExportHandler) exportCSV(w http.ResponseWriter, records []models.Signat
 
 	writer := csv.NewWriter(w)
 	writer.Comma = ';'
-	_ = writer.Write([]string{"ID", "Data/Hora", "Documento", "Colaborador", "Email", "Setor", "Cargo", "Localizacao", "Hash", "IP", "User Agent", "Versao (ID)", "Hash do Conteudo", "Sequencia na Cadeia"})
+	_ = writer.Write([]string{"ID", "Data/Hora", "Documento", "Titulo do Documento", "Colaborador", "Email", "Setor", "Cargo", "Localizacao", "Hash", "IP", "User Agent", "Versao (ID)", "Hash do Conteudo", "Sequencia na Cadeia"})
 
 	for _, rec := range records {
 		_ = writer.Write([]string{
 			strconv.FormatInt(rec.ID, 10),
 			rec.SignedAt.Format("02/01/2006 15:04:05"),
 			rec.DocumentName,
+			rec.DocumentTitle,
 			rec.UserName,
 			rec.UserEmail,
 			rec.Department,
@@ -135,7 +136,7 @@ func (h *ExportHandler) exportXLSX(w http.ResponseWriter, records []models.Signa
 	sheet := "Assinaturas"
 	f.SetSheetName("Sheet1", sheet)
 
-	headers := []string{"ID", "Data / Hora", "Documento", "Colaborador", "E-mail", "Setor", "Cargo", "Localização", "Hash ID", "IP Origem", "Navegador / SO", "Versão (ID)", "Hash do Conteúdo", "Sequência na Cadeia"}
+	headers := []string{"ID", "Data / Hora", "Documento", "Título do Documento", "Colaborador", "E-mail", "Setor", "Cargo", "Localização", "Hash ID", "IP Origem", "Navegador / SO", "Versão (ID)", "Hash do Conteúdo", "Sequência na Cadeia"}
 	for i, head := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		_ = f.SetCellValue(sheet, cell, head)
@@ -149,29 +150,34 @@ func (h *ExportHandler) exportXLSX(w http.ResponseWriter, records []models.Signa
 	_ = f.SetRowStyle(sheet, 1, 1, styleHeader)
 
 	for rowIdx, rec := range records {
-		rNum := rowIdx + 2
-		_ = f.SetCellValue(sheet, fmt.Sprintf("A%d", rNum), rec.ID)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("B%d", rNum), rec.SignedAt.Format("02/01/2006 15:04:05"))
-		_ = f.SetCellValue(sheet, fmt.Sprintf("C%d", rNum), rec.DocumentName)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("D%d", rNum), rec.UserName)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("E%d", rNum), rec.UserEmail)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("F%d", rNum), rec.Department)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("G%d", rNum), rec.JobTitle)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("H%d", rNum), rec.OfficeLocation)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("I%d", rNum), rec.HashID)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("J%d", rNum), rec.IPAddress)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("K%d", rNum), rec.UserAgent)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("L%d", rNum), rec.DocumentVersionID)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("M%d", rNum), rec.ContentHash)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("N%d", rNum), rec.ChainSeq)
+		row := []any{
+			rec.ID,
+			rec.SignedAt.Format("02/01/2006 15:04:05"),
+			rec.DocumentName,
+			rec.DocumentTitle,
+			rec.UserName,
+			rec.UserEmail,
+			rec.Department,
+			rec.JobTitle,
+			rec.OfficeLocation,
+			rec.HashID,
+			rec.IPAddress,
+			rec.UserAgent,
+			rec.DocumentVersionID,
+			rec.ContentHash,
+			rec.ChainSeq,
+		}
+		cell, _ := excelize.CoordinatesToCellName(1, rowIdx+2)
+		_ = f.SetSheetRow(sheet, cell, &row)
 	}
 
 	_ = f.SetColWidth(sheet, "B", "B", 20)
-	_ = f.SetColWidth(sheet, "C", "C", 22)
-	_ = f.SetColWidth(sheet, "D", "E", 32)
-	_ = f.SetColWidth(sheet, "F", "G", 26)
-	_ = f.SetColWidth(sheet, "I", "I", 36)
-	_ = f.SetColWidth(sheet, "M", "M", 36)
+	_ = f.SetColWidth(sheet, "C", "C", 16)
+	_ = f.SetColWidth(sheet, "D", "D", 40)
+	_ = f.SetColWidth(sheet, "E", "F", 32)
+	_ = f.SetColWidth(sheet, "G", "H", 26)
+	_ = f.SetColWidth(sheet, "J", "J", 36)
+	_ = f.SetColWidth(sheet, "N", "N", 36)
 
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))

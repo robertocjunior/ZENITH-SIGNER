@@ -352,3 +352,52 @@ func TestIntegrityCheckDetectsTampering(t *testing.T) {
 func serviceRegister(ref string) service.RegisterInput {
 	return service.RegisterInput{OutlineRef: ref, Admin: adminEmail}
 }
+
+func TestDocumentTitleShownInAdminExportsAndValidator(t *testing.T) {
+	stub := newStubOutline()
+	stub.set("uuid-t", "SPDSySCsxL", "Criação e Publicação de APIs REST com TL++ no Protheus", "texto")
+	env := newTestEnv(t, stub)
+	ctx := context.Background()
+	if _, err := env.docSvc.Register(ctx, serviceRegister("uuid-t")); err != nil {
+		t.Fatal(err)
+	}
+	const title = "Criação e Publicação de APIs REST com TL++ no Protheus"
+	if rec := postConfirm(t, env.router, "SPDSySCsxL", "maria@empresa.com", validCSRF("maria@empresa.com"), nil); rec.Code != http.StatusSeeOther {
+		t.Fatalf("sign: %d", rec.Code)
+	}
+	// Unregistered doc keeps showing only its identifier.
+	if rec := postConfirm(t, env.router, "AVULSO-1", "maria@empresa.com", validCSRF("maria@empresa.com"), nil); rec.Code != http.StatusSeeOther {
+		t.Fatalf("sign: %d", rec.Code)
+	}
+
+	admin := adminGet(env.router, "/admin").Body.String()
+	htmlTitle := strings.ReplaceAll(title, "+", "&#43;") // html/template renders "+" as &#43;
+	if !strings.Contains(admin, "<strong>"+htmlTitle+"</strong>") || !strings.Contains(admin, "SPDSySCsxL") || !strings.Contains(admin, "<strong>AVULSO-1</strong>") {
+		t.Errorf("admin list must show title + identifier")
+	}
+
+	// The document filter also matches the title.
+	filtered := adminGet(env.router, "/admin?doc="+url.QueryEscape("APIs REST")).Body.String()
+	if !strings.Contains(filtered, "SPDSySCsxL") || strings.Contains(filtered, "AVULSO-1") {
+		t.Errorf("filter by title failed")
+	}
+
+	csv := adminGet(env.router, "/admin/export?format=csv").Body.String()
+	if !strings.Contains(csv, "Titulo do Documento") || !strings.Contains(csv, "SPDSySCsxL;"+title+";") {
+		t.Errorf("CSV must carry the title next to the identifier:\n%s", csv)
+	}
+	xml := adminGet(env.router, "/admin/export?format=xml").Body.String()
+	if !strings.Contains(xml, "<document_title>"+title+"</document_title>") {
+		t.Errorf("XML must carry document_title")
+	}
+	if adminGet(env.router, "/admin/export?format=xlsx").Code != http.StatusOK {
+		t.Errorf("XLSX export failed")
+	}
+
+	sig, _ := env.repo.GetByDocAndEmail(ctx, "SPDSySCsxL", "maria@empresa.com")
+	home := httptest.NewRecorder()
+	env.router.ServeHTTP(home, httptest.NewRequest(http.MethodGet, "/?hash="+sig.HashID, nil))
+	if !strings.Contains(home.Body.String(), htmlTitle) {
+		t.Errorf("public validator must show the document title")
+	}
+}

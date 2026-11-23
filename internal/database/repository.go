@@ -54,7 +54,10 @@ func (r *sqliteRepository) Ping(ctx context.Context) error {
 	return r.db.PingContext(ctx)
 }
 
-const signatureColumns = `id, hash_id, document_name, user_name, user_email,
+// documentTitleExpr resolves the registered document title for a signature row.
+const documentTitleExpr = `COALESCE((SELECT title FROM documents WHERE doc_key = signatures.document_name), '')`
+
+const signatureColumns = `id, hash_id, document_name, ` + documentTitleExpr + `, user_name, user_email,
 	COALESCE(department, ''), COALESCE(job_title, ''), COALESCE(office_location, ''),
 	signed_at, COALESCE(user_agent, ''), COALESCE(ip_address, ''),
 	document_version_id, content_hash, prev_hash, COALESCE(chain_seq, 0)`
@@ -66,7 +69,7 @@ type rowScanner interface {
 func scanSignature(row rowScanner) (*models.SignatureRecord, error) {
 	var rec models.SignatureRecord
 	err := row.Scan(
-		&rec.ID, &rec.HashID, &rec.DocumentName, &rec.UserName, &rec.UserEmail,
+		&rec.ID, &rec.HashID, &rec.DocumentName, &rec.DocumentTitle, &rec.UserName, &rec.UserEmail,
 		&rec.Department, &rec.JobTitle, &rec.OfficeLocation,
 		&rec.SignedAt, &rec.UserAgent, &rec.IPAddress,
 		&rec.DocumentVersionID, &rec.ContentHash, &rec.PrevHash, &rec.ChainSeq,
@@ -199,13 +202,15 @@ func (r *sqliteRepository) GetByHash(ctx context.Context, hash string) (*models.
 func (r *sqliteRepository) getArchivedByHash(ctx context.Context, hash string) (*models.SignatureRecord, error) {
 	var rec models.SignatureRecord
 	err := r.db.QueryRowContext(ctx, `
-	SELECT id, hash_id, document_name, user_name, user_email,
+	SELECT id, hash_id, document_name,
+	       COALESCE((SELECT title FROM documents WHERE doc_key = signatures_duplicates.document_name), ''),
+	       user_name, user_email,
 	       COALESCE(department, ''), COALESCE(job_title, ''), COALESCE(office_location, ''),
 	       signed_at, COALESCE(user_agent, ''), COALESCE(ip_address, '')
 	FROM signatures_duplicates
 	WHERE hash_id = ?
 	LIMIT 1`, strings.TrimSpace(hash)).Scan(
-		&rec.ID, &rec.HashID, &rec.DocumentName, &rec.UserName, &rec.UserEmail,
+		&rec.ID, &rec.HashID, &rec.DocumentName, &rec.DocumentTitle, &rec.UserName, &rec.UserEmail,
 		&rec.Department, &rec.JobTitle, &rec.OfficeLocation, &rec.SignedAt, &rec.UserAgent, &rec.IPAddress,
 	)
 	if err != nil {
@@ -225,8 +230,9 @@ func (r *sqliteRepository) buildFilterQuery(baseSQL string, filter models.Filter
 	var args []interface{}
 
 	if doc := strings.TrimSpace(filter.Document); doc != "" {
-		sb.WriteString(" AND document_name LIKE ?")
-		args = append(args, "%"+doc+"%")
+		// Matches the doc= identifier or the registered document title.
+		sb.WriteString(" AND (document_name LIKE ? OR document_name IN (SELECT doc_key FROM documents WHERE title LIKE ?))")
+		args = append(args, "%"+doc+"%", "%"+doc+"%")
 	}
 	if user := strings.TrimSpace(filter.User); user != "" {
 		sb.WriteString(" AND (user_email LIKE ? OR user_name LIKE ?)")

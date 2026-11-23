@@ -26,9 +26,12 @@ func (u *UserProfile) EffectiveEmail() string {
 
 // SignatureRecord represents a completed electronic document confirmation.
 type SignatureRecord struct {
-	ID             int64     `xml:"id" json:"id"`
-	HashID         string    `xml:"hash_id" json:"hash_id"`
-	DocumentName   string    `xml:"document_name" json:"document_name"`
+	ID           int64  `xml:"id" json:"id"`
+	HashID       string `xml:"hash_id" json:"hash_id"`
+	DocumentName string `xml:"document_name" json:"document_name"`
+	// DocumentTitle is the display name from the document registry (empty when
+	// the doc is not registered). Not part of the audit seal.
+	DocumentTitle  string    `xml:"document_title,omitempty" json:"document_title,omitempty"`
 	UserName       string    `xml:"user_name" json:"user_name"`
 	UserEmail      string    `xml:"user_email" json:"user_email"`
 	Department     string    `xml:"department" json:"department"`

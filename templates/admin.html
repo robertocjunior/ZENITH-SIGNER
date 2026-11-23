@@ -73,7 +73,7 @@
         <div class="filter-grid">
           <div class="filter-group">
             <label>Documento</label>
-            <input type="text" name="doc" placeholder="Ex: POLITICA-2026" value="{{.FilterDoc}}">
+            <input type="text" name="doc" placeholder="Título ou identificador" value="{{.FilterDoc}}">
           </div>
           <div class="filter-group">
             <label>Colaborador / E-mail</label>
@@ -136,7 +136,7 @@
           {{range .Records}}
           <tr>
             <td><span class="badge-ok">{{.SignedAt.Format "02/01/2006 15:04:05"}}</span></td>
-            <td><strong>{{.DocumentName}}</strong></td>
+            <td>{{if .DocumentTitle}}<strong>{{.DocumentTitle}}</strong><div style="font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; color: #605e5c;">{{.DocumentName}}</div>{{else}}<strong>{{.DocumentName}}</strong>{{end}}</td>
             <td>{{.UserName}}</td>
             <td>{{.UserEmail}}</td>
             <td>{{if .Department}}{{.Department}}{{else}}-{{end}}</td>
