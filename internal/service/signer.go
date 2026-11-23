@@ -112,6 +112,20 @@ func (s *signerService) SignDocument(ctx context.Context, req SignRequest) (*mod
 	}
 
 	if err := s.repo.Create(ctx, record); err != nil {
+		if errors.Is(err, database.ErrAlreadySigned) {
+			// Lost a race with a concurrent request (e.g. double click): the
+			// database kept the first signature, return it and skip the receipt.
+			existing, getErr := s.repo.GetByDocAndEmail(ctx, doc, emailAddr)
+			if getErr != nil || existing == nil {
+				return nil, fmt.Errorf("signature conflict but existing record not found: %w", errors.Join(err, getErr))
+			}
+			s.logger.Info("concurrent duplicate signature ignored",
+				slog.String("doc", doc),
+				slog.String("email", emailAddr),
+				slog.String("hash", existing.HashID),
+			)
+			return existing, nil
+		}
 		return nil, fmt.Errorf("failed to save signature record: %w", err)
 	}
 

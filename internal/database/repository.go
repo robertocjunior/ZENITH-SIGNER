@@ -11,6 +11,9 @@ import (
 	"zenith-signer/internal/models"
 )
 
+// ErrAlreadySigned is returned by Create when the user already signed the document.
+var ErrAlreadySigned = errors.New("document already signed by this user")
+
 // Repository defines data access operations for signatures.
 type Repository interface {
 	Create(ctx context.Context, rec *models.SignatureRecord) error
@@ -39,6 +42,7 @@ func (r *sqliteRepository) Create(ctx context.Context, rec *models.SignatureReco
 	INSERT INTO signatures (
 		hash_id, document_name, user_name, user_email, department, job_title, office_location, signed_at, user_agent, ip_address
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(document_name, user_email) DO NOTHING
 	`
 
 	res, err := r.db.ExecContext(
@@ -59,6 +63,13 @@ func (r *sqliteRepository) Create(ctx context.Context, rec *models.SignatureReco
 		return fmt.Errorf("failed to insert signature record: %w", err)
 	}
 
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to read insert result: %w", err)
+	}
+	if affected == 0 {
+		return ErrAlreadySigned
+	}
 	id, err := res.LastInsertId()
 	if err == nil {
 		rec.ID = id
@@ -128,7 +139,7 @@ func (r *sqliteRepository) GetByHash(ctx context.Context, hash string) (*models.
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return r.getArchivedByHash(ctx, hash)
 		}
 		return nil, fmt.Errorf("failed to fetch signature by hash: %w", err)
 	}
@@ -237,4 +248,29 @@ func (r *sqliteRepository) Count(ctx context.Context, filter models.FilterCriter
 		return 0, fmt.Errorf("failed to count signatures: %w", err)
 	}
 	return count, nil
+}
+
+// getArchivedByHash looks up a hash among duplicate signatures archived by the
+// unique-signature migration, so receipts already e-mailed remain verifiable.
+func (r *sqliteRepository) getArchivedByHash(ctx context.Context, hash string) (*models.SignatureRecord, error) {
+	query := `
+	SELECT id, hash_id, document_name, user_name, user_email,
+	       COALESCE(department, ''), COALESCE(job_title, ''), COALESCE(office_location, ''),
+	       signed_at, COALESCE(user_agent, ''), COALESCE(ip_address, '')
+	FROM signatures_duplicates
+	WHERE hash_id = ?
+	LIMIT 1
+	`
+	var rec models.SignatureRecord
+	err := r.db.QueryRowContext(ctx, query, strings.TrimSpace(hash)).Scan(
+		&rec.ID, &rec.HashID, &rec.DocumentName, &rec.UserName, &rec.UserEmail,
+		&rec.Department, &rec.JobTitle, &rec.OfficeLocation, &rec.SignedAt, &rec.UserAgent, &rec.IPAddress,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to fetch archived signature by hash: %w", err)
+	}
+	return &rec, nil
 }

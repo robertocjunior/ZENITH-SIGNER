@@ -104,6 +104,92 @@ func Migrate(ctx context.Context, db *sql.DB, logger *slog.Logger) error {
 		return fmt.Errorf("failed to run database migrations: %w", err)
 	}
 
+	if err := ensureUniqueSignaturePerUser(ctx, db, logger); err != nil {
+		return err
+	}
+
 	logger.Info("database migrations executed successfully")
+	return nil
+}
+
+const uniqueDocEmailIndex = "ux_signatures_doc_email"
+
+// ensureUniqueSignaturePerUser enforces one signature per (document, user).
+//
+// Databases created before this constraint may already contain duplicates
+// (e.g. double clicks). Instead of failing the migration or deleting audit
+// data, every duplicate except the first signature (lowest id) is moved to
+// signatures_duplicates, which stays queryable so receipts already e-mailed
+// with those hashes can still be verified. Runs once, in a single transaction.
+func ensureUniqueSignaturePerUser(ctx context.Context, db *sql.DB, logger *slog.Logger) error {
+	const archiveDDL = `
+	CREATE TABLE IF NOT EXISTS signatures_duplicates (
+		id INTEGER PRIMARY KEY,
+		hash_id TEXT NOT NULL,
+		document_name TEXT NOT NULL,
+		user_name TEXT NOT NULL,
+		user_email TEXT NOT NULL,
+		department TEXT,
+		job_title TEXT,
+		office_location TEXT,
+		signed_at DATETIME NOT NULL,
+		user_agent TEXT,
+		ip_address TEXT,
+		archived_at DATETIME NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_signatures_duplicates_hash ON signatures_duplicates(hash_id);
+	`
+	if _, err := db.ExecContext(ctx, archiveDDL); err != nil {
+		return fmt.Errorf("failed to create signatures_duplicates table: %w", err)
+	}
+
+	var exists int
+	if err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?", uniqueDocEmailIndex,
+	).Scan(&exists); err != nil {
+		return fmt.Errorf("failed to inspect indexes: %w", err)
+	}
+	if exists > 0 {
+		return nil
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin unique-signature migration: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	const duplicatesFilter = `id NOT IN (SELECT MIN(id) FROM signatures GROUP BY document_name, user_email)`
+
+	res, err := tx.ExecContext(ctx, `
+	INSERT INTO signatures_duplicates (
+		id, hash_id, document_name, user_name, user_email, department, job_title,
+		office_location, signed_at, user_agent, ip_address, archived_at
+	)
+	SELECT id, hash_id, document_name, user_name, user_email, department, job_title,
+	       office_location, signed_at, user_agent, ip_address, CURRENT_TIMESTAMP
+	FROM signatures WHERE `+duplicatesFilter)
+	if err != nil {
+		return fmt.Errorf("failed to archive duplicate signatures: %w", err)
+	}
+	moved, _ := res.RowsAffected()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM signatures WHERE `+duplicatesFilter); err != nil {
+		return fmt.Errorf("failed to remove archived duplicate signatures: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		"CREATE UNIQUE INDEX "+uniqueDocEmailIndex+" ON signatures(document_name, user_email)",
+	); err != nil {
+		return fmt.Errorf("failed to create unique signature index: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit unique-signature migration: %w", err)
+	}
+
+	if moved > 0 {
+		logger.Warn("duplicate signatures found and archived in signatures_duplicates (kept the first signature of each user per document)",
+			slog.Int64("archived", moved))
+	}
+	logger.Info("unique signature per user and document enforced", slog.String("index", uniqueDocEmailIndex))
 	return nil
 }
