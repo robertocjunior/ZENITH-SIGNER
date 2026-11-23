@@ -92,7 +92,7 @@ func (h *ExportHandler) exportCSV(w http.ResponseWriter, records []models.Signat
 
 	writer := csv.NewWriter(w)
 	writer.Comma = ';'
-	_ = writer.Write([]string{"ID", "Data/Hora", "Documento", "Colaborador", "Email", "Setor", "Cargo", "Localizacao", "Hash", "IP", "User Agent"})
+	_ = writer.Write([]string{"ID", "Data/Hora", "Documento", "Colaborador", "Email", "Setor", "Cargo", "Localizacao", "Hash", "IP", "User Agent", "Versao (ID)", "Hash do Conteudo", "Sequencia na Cadeia"})
 
 	for _, rec := range records {
 		_ = writer.Write([]string{
@@ -107,6 +107,9 @@ func (h *ExportHandler) exportCSV(w http.ResponseWriter, records []models.Signat
 			rec.HashID,
 			rec.IPAddress,
 			rec.UserAgent,
+			strconv.FormatInt(rec.DocumentVersionID, 10),
+			rec.ContentHash,
+			strconv.FormatInt(rec.ChainSeq, 10),
 		})
 	}
 	writer.Flush()
@@ -132,7 +135,7 @@ func (h *ExportHandler) exportXLSX(w http.ResponseWriter, records []models.Signa
 	sheet := "Assinaturas"
 	f.SetSheetName("Sheet1", sheet)
 
-	headers := []string{"ID", "Data / Hora", "Documento", "Colaborador", "E-mail", "Setor", "Cargo", "Localização", "Hash ID", "IP Origem", "Navegador / SO"}
+	headers := []string{"ID", "Data / Hora", "Documento", "Colaborador", "E-mail", "Setor", "Cargo", "Localização", "Hash ID", "IP Origem", "Navegador / SO", "Versão (ID)", "Hash do Conteúdo", "Sequência na Cadeia"}
 	for i, head := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		_ = f.SetCellValue(sheet, cell, head)
@@ -158,6 +161,9 @@ func (h *ExportHandler) exportXLSX(w http.ResponseWriter, records []models.Signa
 		_ = f.SetCellValue(sheet, fmt.Sprintf("I%d", rNum), rec.HashID)
 		_ = f.SetCellValue(sheet, fmt.Sprintf("J%d", rNum), rec.IPAddress)
 		_ = f.SetCellValue(sheet, fmt.Sprintf("K%d", rNum), rec.UserAgent)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("L%d", rNum), rec.DocumentVersionID)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("M%d", rNum), rec.ContentHash)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("N%d", rNum), rec.ChainSeq)
 	}
 
 	_ = f.SetColWidth(sheet, "B", "B", 20)
@@ -165,6 +171,7 @@ func (h *ExportHandler) exportXLSX(w http.ResponseWriter, records []models.Signa
 	_ = f.SetColWidth(sheet, "D", "E", 32)
 	_ = f.SetColWidth(sheet, "F", "G", 26)
 	_ = f.SetColWidth(sheet, "I", "I", 36)
+	_ = f.SetColWidth(sheet, "M", "M", 36)
 
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))

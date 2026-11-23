@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.AppName}} - Documentos</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 0; background: #f8f9fa; padding: 24px; color: #1f2328; }
+    .container { max-width: 1440px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+    h1 { font-size: 21px; font-weight: 700; margin: 0; color: #111827; }
+    h2 { font-size: 16px; font-weight: 700; margin: 0 0 12px 0; color: #111827; }
+    .card { background: #ffffff; padding: 18px; border-radius: 6px; border: 1px solid #e1dfdd; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+    .muted { color: #605e5c; font-size: 13px; }
+    input[type=text] { padding: 7px 10px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 13px; outline: none; background: #ffffff; }
+    input[type=text]:focus { border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2); }
+    button, .btn { padding: 7px 14px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: #0078d4; color: #ffffff; border: none; }
+    .btn-primary:hover { background: #106ebe; }
+    .btn-secondary { background: #ffffff; color: #323130; border: 1px solid #d0d7de; }
+    .btn-secondary:hover { background: #f3f2f1; }
+    .btn-danger { background: #ffffff; color: #a4262c; border: 1px solid #e8c4c6; }
+    .btn-warn { background: #c27c0e; color: #ffffff; border: none; }
+    .btn-sm { padding: 4px 9px; font-size: 12px; }
+    .btn-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .table-wrapper { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 9px 10px; text-align: left; font-size: 13px; border-bottom: 1px solid #edebe9; vertical-align: top; }
+    th { background: #f3f2f1; font-weight: 600; color: #323130; white-space: nowrap; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; word-break: break-all; }
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .b-ok { background: #edfbf2; color: #107c41; }
+    .b-warn { background: #fff4ce; color: #7a5a00; }
+    .b-err { background: #fde7e9; color: #a4262c; }
+    .b-gray { background: #f3f2f1; color: #605e5c; }
+    .flash { padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; font-weight: 600; word-break: break-word; }
+    .flash-ok { background: #edfbf2; border: 1px solid #cbeed7; color: #0e6234; }
+    .flash-warn { background: #fff8e6; border: 1px solid #f3d98b; color: #7a5a00; }
+    .flash-err { background: #fde7e9; border: 1px solid #f1bbbf; color: #a4262c; }
+    .pending { border-left: 4px solid #c27c0e; }
+    .check { font-size: 12px; color: #323130; display: inline-flex; align-items: center; gap: 4px; }
+    .widget-url { width: 100%; min-width: 220px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>{{.AppName}} — Documentos</h1>
+        <small class="muted">Admin: {{.UserEmail}}</small>
+      </div>
+      <div class="btn-group">
+        <a href="/admin" class="btn btn-secondary">Assinaturas</a>
+        <a href="/admin/documentos" class="btn btn-secondary">Documentos</a>
+        <a href="/auth/logout" class="btn btn-secondary">Sair</a>
+      </div>
+    </div>
+
+    {{if .FlashMsg}}<div class="flash flash-{{.FlashKind}}">{{.FlashMsg}}</div>{{end}}
+
+    {{if not .OutlineEnabled}}
+    <div class="card pending">
+      <h2>Integração com o Outline desativada</h2>
+      <p class="muted">Configure <code>OUTLINE_URL</code> e <code>OUTLINE_API_KEY</code> no <code>.env</code> para cadastrar documentos, acompanhar versões e inserir o widget automaticamente. Para receber alterações em tempo real, configure também <code>OUTLINE_WEBHOOK_SECRET</code>.</p>
+    </div>
+    {{end}}
+
+    {{range .Documents}}{{if .PendingVersionID}}
+    <div class="card pending">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <strong>{{.Title}}</strong> mudou no Outline — <span class="badge b-warn">versão {{.PendingVersionNo}} aguardando decisão</span>
+          <div class="muted" style="margin-top: 4px;">Exigir nova assinatura faz todos confirmarem a leitura de novo. Correção menor mantém as assinaturas atuais válidas.</div>
+        </div>
+        <div class="btn-group">
+          <a class="btn btn-secondary btn-sm" href="/admin/documentos/versao?id={{.PendingVersionID}}">Ver alterações</a>
+          <form method="POST" action="/admin/documentos/decidir">
+            <input type="hidden" name="{{$.CSRFField}}" value="{{$.CSRFToken}}">
+            <input type="hidden" name="version_id" value="{{.PendingVersionID}}">
+            <input type="hidden" name="decision" value="resign">
+            <button type="submit" class="btn btn-warn btn-sm" onclick="return confirm('Exigir que todos confirmem a leitura novamente?')">Exigir nova assinatura</button>
+          </form>
+          <form method="POST" action="/admin/documentos/decidir">
+            <input type="hidden" name="{{$.CSRFField}}" value="{{$.CSRFToken}}">
+            <input type="hidden" name="version_id" value="{{.PendingVersionID}}">
+            <input type="hidden" name="decision" value="minor">
+            <button type="submit" class="btn btn-secondary btn-sm">Correção menor</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {{end}}{{end}}
+
+    {{if .OutlineEnabled}}
+    <div class="card">
+      <h2>Cadastrar documento do Outline</h2>
+      <form method="GET" action="/admin/documentos" class="row" style="margin-bottom: 12px;">
+        <input type="text" name="q" value="{{.Query}}" placeholder="Buscar pelo título no Outline..." style="min-width: 320px;">
+        <button type="submit" class="btn btn-primary">Buscar</button>
+      </form>
+      {{if .SearchError}}<div class="flash flash-err">Erro ao buscar no Outline: {{.SearchError}}</div>{{end}}
+      {{if .Query}}
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Documento no Outline</th><th>Cadastro</th></tr></thead>
+          <tbody>
+          {{range .Results}}
+            <tr>
+              <td><strong>{{.Title}}</strong><div class="mono muted">{{.URLID}}</div></td>
+              <td>
+                {{if .Registered}}
+                  <span class="badge b-gray">Já cadastrado como {{.Registered.DocKey}}</span>
+                {{else}}
+                <form method="POST" action="/admin/documentos/cadastrar" class="row">
+                  <input type="hidden" name="{{$.CSRFField}}" value="{{$.CSRFToken}}">
+                  <input type="hidden" name="outline_ref" value="{{.ID}}">
+                  <input type="text" name="doc_key" placeholder="Identificador (padrão: {{.URLID}})" title="Valor usado em /assinar?doc=. Para vincular assinaturas antigas, informe o identificador já usado no embed atual.">
+                  <label class="check"><input type="checkbox" name="insert_embed" value="1" checked> Inserir widget no topo</label>
+                  <label class="check" title="Assinaturas feitas antes do cadastro (com o mesmo identificador) continuam válidas"><input type="checkbox" name="accept_prior" value="1"> Manter assinaturas anteriores</label>
+                  <button type="submit" class="btn btn-primary btn-sm">Cadastrar</button>
+                </form>
+                {{end}}
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="2" class="muted">Nenhum documento encontrado para "{{.Query}}".</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+      <details style="margin-top: 12px;">
+        <summary class="muted" style="cursor: pointer;">Cadastrar pela URL do documento</summary>
+        <form method="POST" action="/admin/documentos/cadastrar" class="row" style="margin-top: 10px;">
+          <input type="hidden" name="{{.CSRFField}}" value="{{.CSRFToken}}">
+          <input type="text" name="outline_ref" placeholder="https://wiki.../doc/nome-do-documento-AbC123" style="min-width: 380px;" required>
+          <input type="text" name="doc_key" placeholder="Identificador (opcional)">
+          <label class="check"><input type="checkbox" name="insert_embed" value="1" checked> Inserir widget no topo</label>
+          <label class="check"><input type="checkbox" name="accept_prior" value="1"> Manter assinaturas anteriores</label>
+          <button type="submit" class="btn btn-primary btn-sm">Cadastrar</button>
+        </form>
+      </details>
+    </div>
+    {{end}}
+
+    <div class="card">
+      <h2>Documentos cadastrados</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Documento</th>
+              <th>Versão</th>
+              <th>Assinaturas válidas</th>
+              <th>Desatualizadas</th>
+              <th>Widget</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Documents}}
+            <tr>
+              <td>
+                <strong>{{.Title}}</strong>{{if not .Active}} <span class="badge b-gray">desativado</span>{{end}}
+                <div class="mono muted">doc={{.DocKey}}</div>
+                {{if .OutlineURL}}<a href="{{.OutlineURL}}" target="_blank" rel="noopener" class="muted">Abrir no Outline ↗</a>{{end}}
+              </td>
+              <td>
+                v{{.CurrentVersionNo}}
+                {{if .RequiredVersionNo}}<div class="muted">exigida: v{{.RequiredVersionNo}}</div>{{else}}<div class="muted">aceita anteriores</div>{{end}}
+                {{if .CurrentVersionID}}<a class="muted" href="/admin/documentos/versao?id={{.CurrentVersionID}}">histórico</a>{{end}}
+              </td>
+              <td><a href="/admin?doc={{.DocKey}}" class="badge b-ok">{{.ValidSigners}}</a></td>
+              <td>{{if .OutdatedSigners}}<span class="badge b-warn">{{.OutdatedSigners}}</span>{{else}}<span class="muted">0</span>{{end}}</td>
+              <td>
+                {{if eq .EmbedStatus "inserted"}}<span class="badge b-ok">inserido</span>
+                {{else if eq .EmbedStatus "existing"}}<span class="badge b-ok">já existia</span>
+                {{else if eq .EmbedStatus "link"}}<span class="badge b-warn">inserido como link</span>
+                {{else}}<span class="badge b-gray">colar manualmente</span>{{end}}
+                <input class="widget-url" type="text" readonly value="{{index $.WidgetURLs .ID}}" onclick="this.select()">
+              </td>
+              <td>
+                <div class="btn-group">
+                  {{if $.OutlineEnabled}}
+                  <form method="POST" action="/admin/documentos/sincronizar">
+                    <input type="hidden" name="{{$.CSRFField}}" value="{{$.CSRFToken}}">
+                    <input type="hidden" name="document_id" value="{{.ID}}">
+                    <button type="submit" class="btn btn-secondary btn-sm">Sincronizar</button>
+                  </form>
+                  {{end}}
+                  <form method="POST" action="/admin/documentos/status">
+                    <input type="hidden" name="{{$.CSRFField}}" value="{{$.CSRFToken}}">
+                    <input type="hidden" name="document_id" value="{{.ID}}">
+                    {{if .Active}}
+                    <input type="hidden" name="active" value="0">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Desativar? O documento deixará de aceitar confirmações.')">Desativar</button>
+                    {{else}}
+                    <input type="hidden" name="active" value="1">
+                    <button type="submit" class="btn btn-secondary btn-sm">Reativar</button>
+                    {{end}}
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {{else}}
+            <tr><td colspan="6" class="muted" style="text-align: center; padding: 24px;">Nenhum documento cadastrado ainda.</td></tr>
+          {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Integridade das assinaturas</h2>
+      <p class="muted">Cada assinatura é selada com HMAC e encadeada à anterior. A verificação recalcula todos os selos e detecta registros alterados, inseridos ou removidos diretamente no banco.</p>
+      <a href="/admin/documentos?integridade=1" class="btn btn-secondary">Verificar integridade agora</a>
+      {{if .Integrity.Ran}}
+        <div style="margin-top: 12px;">
+        {{if .Integrity.Error}}
+          <div class="flash flash-err">Erro ao verificar: {{.Integrity.Error}}</div>
+        {{else if .Integrity.Issues}}
+          <div class="flash flash-err">Foram encontrados {{len .Integrity.Issues}} problema(s) em {{.Integrity.Checked}} registro(s) verificados.</div>
+          <table>
+            <thead><tr><th>Sequência</th><th>ID</th><th>Problema</th><th>Hash</th></tr></thead>
+            <tbody>
+            {{range .Integrity.Issues}}
+              <tr><td>{{.ChainSeq}}</td><td>{{.RecordID}}</td><td>{{.Problem}}</td><td class="mono">{{.Hash}}</td></tr>
+            {{end}}
+            </tbody>
+          </table>
+        {{else}}
+          <div class="flash flash-ok">Cadeia íntegra: {{.Integrity.Checked}} assinatura(s) verificadas, nenhuma alteração detectada.</div>
+        {{end}}
+        </div>
+      {{end}}
+    </div>
+  </div>
+</body>
+</html>

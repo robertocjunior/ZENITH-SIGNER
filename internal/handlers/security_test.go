@@ -12,10 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"zenith-signer/internal/audit"
 	"zenith-signer/internal/auth"
 	"zenith-signer/internal/config"
 	"zenith-signer/internal/database"
 	"zenith-signer/internal/models"
+	"zenith-signer/internal/service"
 )
 
 // ---------------------------------------------------------------------------
@@ -246,6 +248,8 @@ func TestNewRouterRejectsInvalidSecurityConfig(t *testing.T) {
 				Repo:       database.NewRepository(db),
 				DB:         db,
 				AuthSvc:    auth.NewService(config.AuthConfig{}),
+				DocSvc:     service.NewDocumentService(database.NewDocumentRepository(db), nil, "", server.BaseURL, logger),
+				Sealer:     audit.NewSealer([]byte("k")),
 				TemplateFS: os.DirFS("../.."),
 				Logger:     logger,
 				StartTime:  time.Now(),

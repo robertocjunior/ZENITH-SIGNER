@@ -18,6 +18,26 @@ type Config struct {
 	Logging     LoggingConfig
 	Maintenance MaintenanceConfig
 	Backup      BackupConfig
+	Outline     OutlineConfig
+}
+
+// OutlineConfig configures the integration with an Outline wiki.
+type OutlineConfig struct {
+	// BaseURL of the Outline instance (e.g. https://wiki.empresa.com.br). Empty disables the integration.
+	BaseURL string
+	// APIKey created in Outline under Settings -> API & Apps.
+	APIKey string
+	// WebhookSecret of the Outline webhook subscription (ol_whs_...). Empty disables the webhook endpoint.
+	WebhookSecret string
+	// SyncInterval is how often registered documents are re-checked as a fallback to webhooks.
+	SyncInterval time.Duration
+	// Timeout for each Outline API call.
+	Timeout time.Duration
+}
+
+// Enabled reports whether the Outline integration is configured.
+func (o OutlineConfig) Enabled() bool {
+	return o.BaseURL != "" && o.APIKey != ""
 }
 
 type ServerConfig struct {
@@ -50,6 +70,9 @@ type AuthConfig struct {
 	GraphUserURL  string
 	AdminEmails   map[string]bool
 	SessionSecret string
+	// AuditSecret keys the HMAC that seals each signature in the audit chain.
+	// It must never change, otherwise past signatures can no longer be verified.
+	AuditSecret string
 }
 
 type SMTPConfig struct {
@@ -118,6 +141,7 @@ func Load() *Config {
 			GraphUserURL:  getEnv("GRAPH_USER_URL", "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName,department,jobTitle,officeLocation"),
 			AdminEmails:   parseListToMap(getEnv("ADMIN_EMAILS", "")),
 			SessionSecret: getEnv("SESSION_SECRET", ""),
+			AuditSecret:   getEnv("AUDIT_SECRET", ""),
 		},
 		SMTP: SMTPConfig{
 			Host:          getEnv("SMTP_HOST", "smtp.office365.com"),
@@ -144,6 +168,13 @@ func Load() *Config {
 			Retention:    getEnvAsInt("BACKUP_RETENTION", 7),
 			InitialDelay: getEnvDuration("BACKUP_INITIAL_DELAY", 1*time.Minute),
 			Timeout:      getEnvDuration("BACKUP_TIMEOUT", 5*time.Minute),
+		},
+		Outline: OutlineConfig{
+			BaseURL:       strings.TrimRight(strings.TrimSpace(getEnv("OUTLINE_URL", "")), "/"),
+			APIKey:        strings.TrimSpace(getEnv("OUTLINE_API_KEY", "")),
+			WebhookSecret: strings.TrimSpace(getEnv("OUTLINE_WEBHOOK_SECRET", "")),
+			SyncInterval:  getEnvDuration("OUTLINE_SYNC_INTERVAL", 15*time.Minute),
+			Timeout:       getEnvDuration("OUTLINE_TIMEOUT", 15*time.Second),
 		},
 		Maintenance: MaintenanceConfig{
 			Enabled:  getEnvBool("MAINTENANCE_ENABLED", true),

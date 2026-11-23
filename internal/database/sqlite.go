@@ -107,6 +107,9 @@ func Migrate(ctx context.Context, db *sql.DB, logger *slog.Logger) error {
 	if err := ensureUniqueSignaturePerUser(ctx, db, logger); err != nil {
 		return err
 	}
+	if err := migrateDocumentVersioning(ctx, db, logger); err != nil {
+		return err
+	}
 
 	logger.Info("database migrations executed successfully")
 	return nil
@@ -143,9 +146,12 @@ func ensureUniqueSignaturePerUser(ctx context.Context, db *sql.DB, logger *slog.
 		return fmt.Errorf("failed to create signatures_duplicates table: %w", err)
 	}
 
+	// Skip when either the original constraint or its versioned successor exists:
+	// once documents are versioned a user legitimately has one row per version.
 	var exists int
 	if err := db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?", uniqueDocEmailIndex,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name IN (?, ?)",
+		uniqueDocEmailIndex, uniqueDocEmailVersionIndex,
 	).Scan(&exists); err != nil {
 		return fmt.Errorf("failed to inspect indexes: %w", err)
 	}
@@ -192,4 +198,94 @@ func ensureUniqueSignaturePerUser(ctx context.Context, db *sql.DB, logger *slog.
 	}
 	logger.Info("unique signature per user and document enforced", slog.String("index", uniqueDocEmailIndex))
 	return nil
+}
+
+const uniqueDocEmailVersionIndex = "ux_signatures_doc_email_version"
+
+// migrateDocumentVersioning adds registered documents, their versions and the
+// audit-chain columns. Every step is idempotent.
+func migrateDocumentVersioning(ctx context.Context, db *sql.DB, logger *slog.Logger) error {
+	const ddl = `
+	CREATE TABLE IF NOT EXISTS documents (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		doc_key TEXT NOT NULL UNIQUE,
+		outline_id TEXT NOT NULL UNIQUE,
+		title TEXT NOT NULL,
+		outline_url TEXT NOT NULL DEFAULT '',
+		collection_id TEXT NOT NULL DEFAULT '',
+		current_version_id INTEGER NOT NULL DEFAULT 0,
+		required_version_id INTEGER NOT NULL DEFAULT 0,
+		embed_status TEXT NOT NULL DEFAULT 'manual',
+		active INTEGER NOT NULL DEFAULT 1,
+		created_by TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS document_versions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		document_id INTEGER NOT NULL REFERENCES documents(id),
+		version_no INTEGER NOT NULL,
+		outline_revision INTEGER NOT NULL DEFAULT 0,
+		title TEXT NOT NULL DEFAULT '',
+		content_hash TEXT NOT NULL,
+		content TEXT NOT NULL,
+		decision TEXT NOT NULL,
+		decided_by TEXT NOT NULL DEFAULT '',
+		decided_at DATETIME,
+		created_at DATETIME NOT NULL,
+		UNIQUE(document_id, version_no)
+	);
+	CREATE INDEX IF NOT EXISTS idx_document_versions_doc ON document_versions(document_id, id DESC);
+	`
+	if _, err := db.ExecContext(ctx, ddl); err != nil {
+		return fmt.Errorf("failed to create document tables: %w", err)
+	}
+
+	columns := []struct{ name, ddl string }{
+		{"document_version_id", "ALTER TABLE signatures ADD COLUMN document_version_id INTEGER NOT NULL DEFAULT 0"},
+		{"content_hash", "ALTER TABLE signatures ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''"},
+		{"prev_hash", "ALTER TABLE signatures ADD COLUMN prev_hash TEXT NOT NULL DEFAULT ''"},
+		{"chain_seq", "ALTER TABLE signatures ADD COLUMN chain_seq INTEGER"},
+	}
+	for _, c := range columns {
+		has, err := hasColumn(ctx, db, "signatures", c.name)
+		if err != nil {
+			return err
+		}
+		if !has {
+			if _, err := db.ExecContext(ctx, c.ddl); err != nil {
+				return fmt.Errorf("failed to add signatures.%s: %w", c.name, err)
+			}
+			logger.Info("database column added", slog.String("column", "signatures."+c.name))
+		}
+	}
+
+	const indexes = `
+	CREATE UNIQUE INDEX IF NOT EXISTS ` + uniqueDocEmailVersionIndex + ` ON signatures(document_name, user_email, document_version_id);
+	DROP INDEX IF EXISTS ` + uniqueDocEmailIndex + `;
+	CREATE UNIQUE INDEX IF NOT EXISTS ux_signatures_chain_seq ON signatures(chain_seq);
+	CREATE INDEX IF NOT EXISTS idx_signatures_version ON signatures(document_version_id);
+	`
+	if _, err := db.ExecContext(ctx, indexes); err != nil {
+		return fmt.Errorf("failed to create versioning indexes: %w", err)
+	}
+	return nil
+}
+
+func hasColumn(ctx context.Context, db *sql.DB, table, column string) (bool, error) {
+	rows, err := db.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect %s columns: %w", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return false, err
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }

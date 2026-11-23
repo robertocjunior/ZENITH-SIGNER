@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.AppName}} - {{.Doc.Title}} v{{.Version.VersionNo}}</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 0; background: #f8f9fa; padding: 24px; color: #1f2328; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+    h1 { font-size: 20px; font-weight: 700; margin: 0; color: #111827; }
+    h2 { font-size: 15px; font-weight: 700; margin: 0 0 10px 0; }
+    .card { background: #ffffff; padding: 18px; border-radius: 6px; border: 1px solid #e1dfdd; margin-bottom: 16px; }
+    .muted { color: #605e5c; font-size: 13px; }
+    button, .btn { padding: 7px 14px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-secondary { background: #ffffff; color: #323130; border: 1px solid #d0d7de; }
+    .btn-warn { background: #c27c0e; color: #ffffff; border: none; }
+    .btn-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+    .b-ok { background: #edfbf2; color: #107c41; }
+    .b-warn { background: #fff4ce; color: #7a5a00; }
+    .b-gray { background: #f3f2f1; color: #605e5c; }
+    .diff { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px; border: 1px solid #e1dfdd; border-radius: 4px; overflow-x: auto; }
+    .diff div { padding: 1px 10px; white-space: pre-wrap; word-break: break-word; min-height: 18px; }
+    .d-add { background: #e6ffec; color: #116329; }
+    .d-del { background: #ffebe9; color: #82071e; text-decoration: line-through; }
+    .d-eq { color: #57606a; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; word-break: break-all; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 7px 10px; text-align: left; font-size: 13px; border-bottom: 1px solid #edebe9; }
+    th { background: #f3f2f1; }
+    .flash { padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; font-weight: 600; }
+    .flash-ok { background: #edfbf2; color: #0e6234; } .flash-warn { background: #fff8e6; color: #7a5a00; } .flash-err { background: #fde7e9; color: #a4262c; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>{{.Doc.Title}} — versão {{.Version.VersionNo}}</h1>
+        <small class="muted">doc={{.Doc.DocKey}} · capturada em {{.Version.CreatedAt.Format "02/01/2006 15:04"}}{{if .Version.OutlineRevision}} · revisão {{.Version.OutlineRevision}} no Outline{{end}}</small>
+      </div>
+      <div class="btn-group">
+        {{if .Doc.OutlineURL}}<a href="{{.Doc.OutlineURL}}" target="_blank" rel="noopener" class="btn btn-secondary">Abrir no Outline ↗</a>{{end}}
+        <a href="/admin/documentos" class="btn btn-secondary">← Documentos</a>
+      </div>
+    </div>
+
+    {{if .FlashMsg}}<div class="flash flash-{{.FlashKind}}">{{.FlashMsg}}</div>{{end}}
+
+    <div class="card">
+      <div class="btn-group" style="justify-content: space-between;">
+        <div>
+          {{if eq .Version.Decision "pending"}}<span class="badge b-warn">aguardando decisão</span>
+          {{else if eq .Version.Decision "resign"}}<span class="badge b-warn">nova assinatura exigida</span>
+          {{else if eq .Version.Decision "minor"}}<span class="badge b-gray">correção menor</span>
+          {{else}}<span class="badge b-ok">versão inicial</span>{{end}}
+          {{if .Version.DecidedBy}}<span class="muted"> por {{.Version.DecidedBy}}{{if .Version.DecidedAt}} em {{.Version.DecidedAt.Format "02/01/2006 15:04"}}{{end}}</span>{{end}}
+          <div class="muted" style="margin-top: 6px;">{{if .Previous}}Comparado com a versão {{.Previous.VersionNo}}:{{else}}Conteúdo capturado no cadastro:{{end}} <strong style="color:#116329;">+{{.Added}}</strong> / <strong style="color:#82071e;">−{{.Removed}}</strong> linhas</div>
+          <div class="mono muted" style="margin-top: 4px;">SHA-256 do conteúdo: {{.Version.ContentHash}}</div>
+        </div>
+        {{if eq .Version.Decision "pending"}}
+        <div class="btn-group">
+          <form method="POST" action="/admin/documentos/decidir">
+            <input type="hidden" name="{{.CSRFField}}" value="{{.CSRFToken}}">
+            <input type="hidden" name="version_id" value="{{.Version.ID}}">
+            <input type="hidden" name="decision" value="resign">
+            <input type="hidden" name="return" value="{{.Self}}">
+            <button type="submit" class="btn btn-warn" onclick="return confirm('Exigir que todos confirmem a leitura novamente?')">Exigir nova assinatura</button>
+          </form>
+          <form method="POST" action="/admin/documentos/decidir">
+            <input type="hidden" name="{{.CSRFField}}" value="{{.CSRFToken}}">
+            <input type="hidden" name="version_id" value="{{.Version.ID}}">
+            <input type="hidden" name="decision" value="minor">
+            <input type="hidden" name="return" value="{{.Self}}">
+            <button type="submit" class="btn btn-secondary">Correção menor</button>
+          </form>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Alterações</h2>
+      <div class="diff">
+        {{range .Diff}}
+          {{if eq .Kind 43}}<div class="d-add">+ {{.Text}}</div>{{else if eq .Kind 45}}<div class="d-del">− {{.Text}}</div>{{else}}<div class="d-eq">  {{.Text}}</div>{{end}}
+        {{else}}
+          <div class="d-eq">(sem conteúdo)</div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Histórico de versões</h2>
+      <table>
+        <thead><tr><th>Versão</th><th>Capturada em</th><th>Situação</th><th>SHA-256</th></tr></thead>
+        <tbody>
+        {{range .Versions}}
+          <tr>
+            <td><a href="/admin/documentos/versao?id={{.ID}}">v{{.VersionNo}}</a>{{if eq .ID $.Doc.CurrentVersionID}} <span class="badge b-ok">atual</span>{{end}}{{if eq .ID $.Doc.RequiredVersionID}} <span class="badge b-warn">exigida</span>{{end}}</td>
+            <td>{{.CreatedAt.Format "02/01/2006 15:04"}}</td>
+            <td>{{.Decision}}</td>
+            <td class="mono">{{printf "%.16s" .ContentHash}}…</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
