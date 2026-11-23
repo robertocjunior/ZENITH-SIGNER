@@ -1,11 +1,9 @@
 package handlers
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"zenith-signer/internal/models"
@@ -105,18 +103,8 @@ func (h *SignHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		IP:             extractClientIP(r),
 		UserAgent:      r.UserAgent(),
 	}
-	req.ExpectedVersionID, _ = strconv.ParseInt(strings.TrimSpace(r.PostFormValue("version_id")), 10, 64)
 
 	if _, err := h.signerSvc.SignDocument(r.Context(), req); err != nil {
-		if errors.Is(err, service.ErrDocumentChanged) {
-			// The page changed while the widget was open: show the new version.
-			http.Redirect(w, r, embedURLFor(doc)+"&atualizado=1", http.StatusSeeOther)
-			return
-		}
-		if errors.Is(err, service.ErrDocumentInactive) {
-			http.Error(w, err.Error(), http.StatusGone)
-			return
-		}
 		h.logger.Error("error registering signature",
 			slog.String("request_id", RequestIDFromContext(r.Context())),
 			slog.String("doc", doc),

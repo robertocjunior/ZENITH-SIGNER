@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"zenith-signer/internal/audit"
 	"zenith-signer/internal/auth"
 	"zenith-signer/internal/config"
 	"zenith-signer/internal/database"
@@ -29,39 +27,17 @@ func (m *mockEmailSender) SendReceipt(ctx context.Context, toEmail, toName, docN
 
 func setupTestRouter(t *testing.T) (http.Handler, database.Repository) {
 	t.Helper()
-	env := newTestEnv(t, nil)
-	return env.router, env.repo
-}
-
-// testEnv bundles a fully wired router for handler tests.
-type testEnv struct {
-	db      *sql.DB
-	router  http.Handler
-	repo    database.Repository
-	docRepo database.DocumentRepository
-	docSvc  *service.DocumentService
-	sealer  *audit.Sealer
-}
-
-// newTestEnv builds the router with an in-memory DB; outlineAPI may be nil (integration disabled).
-func newTestEnv(t *testing.T, outlineAPI service.OutlineAPI) *testEnv {
-	t.Helper()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	// A single connection keeps the in-memory database shared across queries.
-	dbCfg := config.DatabaseConfig{Path: "file:" + t.Name() + "?mode=memory&cache=shared", MaxOpenConns: 1, MaxIdleConns: 1}
+	dbCfg := config.DatabaseConfig{Path: ":memory:"}
 	db, err := database.Open(dbCfg, logger)
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
 
 	ctx := context.Background()
-	if err := database.Migrate(ctx, db, logger); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	_ = database.Migrate(ctx, db, logger)
 	repo := database.NewRepository(db)
-	docRepo := database.NewDocumentRepository(db)
 
 	authCfg := config.AuthConfig{
 		AdminEmails: map[string]bool{
@@ -69,29 +45,17 @@ func newTestEnv(t *testing.T, outlineAPI service.OutlineAPI) *testEnv {
 		},
 	}
 	authSvc := auth.NewService(authCfg)
-	sealer := audit.NewSealer([]byte("test-audit-key"))
-	signerSvc := service.NewSignerService(repo, &mockEmailSender{}, logger,
-		service.WithDocuments(docRepo), service.WithSealer(sealer))
+	signerSvc := service.NewSignerService(repo, &mockEmailSender{}, logger)
 
 	t.Setenv("SESSION_SECRET", "test-session-secret")
-	cfg := config.Load()
-
-	var docSvc *service.DocumentService
-	if outlineAPI != nil {
-		docSvc = service.NewDocumentService(docRepo, outlineAPI, "https://wiki.empresa.com.br", cfg.Server.BaseURL, logger)
-	} else {
-		docSvc = service.NewDocumentService(docRepo, nil, "", cfg.Server.BaseURL, logger)
-	}
 
 	rootFS := os.DirFS("../..")
 	router, err := NewRouter(RouterParams{
-		Config:     cfg,
+		Config:     config.Load(),
 		Repo:       repo,
 		DB:         db,
 		AuthSvc:    authSvc,
 		SignerSvc:  signerSvc,
-		DocSvc:     docSvc,
-		Sealer:     sealer,
 		TemplateFS: rootFS,
 		Logger:     logger,
 		StartTime:  time.Now(),
@@ -100,7 +64,7 @@ func newTestEnv(t *testing.T, outlineAPI service.OutlineAPI) *testEnv {
 		t.Fatalf("failed to create test router: %v", err)
 	}
 
-	return &testEnv{db: db, router: router, repo: repo, docRepo: docRepo, docSvc: docSvc, sealer: sealer}
+	return router, repo
 }
 
 func TestHealthEndpoints(t *testing.T) {

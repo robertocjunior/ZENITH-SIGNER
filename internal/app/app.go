@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -15,13 +14,11 @@ import (
 	"syscall"
 	"time"
 
-	"zenith-signer/internal/audit"
 	"zenith-signer/internal/auth"
 	"zenith-signer/internal/config"
 	"zenith-signer/internal/database"
 	"zenith-signer/internal/email"
 	"zenith-signer/internal/handlers"
-	"zenith-signer/internal/outline"
 	"zenith-signer/internal/service"
 )
 
@@ -84,25 +81,7 @@ func RunWithTemplates(templateFS fs.FS) {
 	repo := database.NewRepository(db)
 	authSvc := auth.NewService(cfg.Auth)
 	emailSender := email.NewSender(cfg.SMTP, logger)
-	docRepo := database.NewDocumentRepository(db)
-	sealer := audit.NewSealer(auditKey(cfg, logger))
-	signerSvc := service.NewSignerService(repo, emailSender, logger,
-		service.WithDocuments(docRepo),
-		service.WithSealer(sealer),
-	)
-
-	var outlineClient service.OutlineAPI
-	if cfg.Outline.Enabled() {
-		outlineClient = outline.NewClient(cfg.Outline.BaseURL, cfg.Outline.APIKey, cfg.Outline.Timeout)
-		logger.Info("outline integration enabled",
-			slog.String("outline_url", cfg.Outline.BaseURL),
-			slog.Bool("webhook", cfg.Outline.WebhookSecret != ""),
-			slog.Duration("sync_interval", cfg.Outline.SyncInterval))
-	} else {
-		logger.Info("outline integration disabled (set OUTLINE_URL and OUTLINE_API_KEY to enable)")
-	}
-	docSvc := service.NewDocumentService(docRepo, outlineClient, cfg.Outline.BaseURL, cfg.Server.BaseURL, logger)
-	docSvc.StartSyncWorker(appCtx, cfg.Outline.SyncInterval)
+	signerSvc := service.NewSignerService(repo, emailSender, logger)
 
 	// Build HTTP router and middleware chain
 	router, err := handlers.NewRouter(handlers.RouterParams{
@@ -111,8 +90,6 @@ func RunWithTemplates(templateFS fs.FS) {
 		DB:         db,
 		AuthSvc:    authSvc,
 		SignerSvc:  signerSvc,
-		DocSvc:     docSvc,
-		Sealer:     sealer,
 		TemplateFS: templateFS,
 		Logger:     logger,
 		StartTime:  startTime,
@@ -163,11 +140,6 @@ func RunWithTemplates(templateFS fs.FS) {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logger.Error("graceful shutdown failed, forcing close", slog.String("error", err.Error()))
 			_ = server.Close()
-		}
-
-		// Wait for webhook-triggered syncs
-		if err := docSvc.Wait(shutdownCtx); err != nil {
-			logger.Warn("background outline syncs did not finish before shutdown timeout", slog.String("error", err.Error()))
 		}
 
 		// Wait for any in-flight background receipt emails to complete
@@ -222,21 +194,4 @@ func setupLogger(cfg config.LoggingConfig) (*slog.Logger, func()) {
 	}
 
 	return logger, cleanup
-}
-
-// auditKey returns the key that seals signatures. AUDIT_SECRET is preferred;
-// SESSION_SECRET is accepted as a fallback. Without either, a random key is
-// used and the audit chain cannot be verified after a restart.
-func auditKey(cfg *config.Config, logger *slog.Logger) []byte {
-	if cfg.Auth.AuditSecret != "" {
-		return []byte(cfg.Auth.AuditSecret)
-	}
-	if cfg.Auth.SessionSecret != "" {
-		logger.Warn("AUDIT_SECRET is empty: using SESSION_SECRET to seal signatures; set a dedicated AUDIT_SECRET and never change it")
-		return []byte("audit:" + cfg.Auth.SessionSecret)
-	}
-	logger.Error("AUDIT_SECRET and SESSION_SECRET are empty: signatures are sealed with a random key and the audit chain will NOT verify after a restart")
-	key := make([]byte, 32)
-	_, _ = rand.Read(key)
-	return key
 }

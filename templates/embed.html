@@ -200,25 +200,6 @@
       transition: background 0.15s ease;
       width: fit-content;
     }
-    .version-tag {
-      display: inline-block;
-      font-size: 11px;
-      font-weight: 600;
-      color: #3b5cd6;
-      background: #eef1fc;
-      border-radius: 3px;
-      padding: 1px 6px;
-      margin-left: 4px;
-    }
-    .notice-update {
-      background: #fff8e6;
-      border: 1px solid #f3d98b;
-      color: #7a5a00;
-      padding: 8px 14px;
-      border-radius: 4px;
-      font-size: 13px;
-      font-weight: 600;
-    }
     .btn-login:hover {
       background: #106ebe;
     }
@@ -229,7 +210,7 @@
     <div class="header-row">
       <div class="doc-info">
         <h2>Confirmação de Leitura</h2>
-        <p>Documento: {{.Title}}{{if .IsRegistered}} <span class="version-tag">versão {{.VersionNo}}</span>{{end}}</p>
+        <p>Documento: {{.Doc}}</p>
       </div>
 
       {{if .IsLogged}}
@@ -272,25 +253,16 @@
             </a>
           </div>
           <div class="confirmed-placeholder"></div>
-        {{else if not .Active}}
-          <div class="notice-update">Este documento não está mais aceitando confirmações.</div>
         {{else}}
           <form method="POST" action="/confirmar" class="action-row">
             <input type="hidden" name="doc" value="{{.Doc}}">
             <input type="hidden" name="{{.CSRFField}}" value="{{.CSRFToken}}">
-            {{if .VersionID}}<input type="hidden" name="version_id" value="{{.VersionID}}">{{end}}
             <button type="submit" class="custom-checkbox-btn">
               <div class="custom-checkbox-box"></div>
-              <span class="custom-checkbox-label">{{if .Outdated}}Li a nova versão e confirmo os termos deste documento{{else}}Li e confirmo os termos deste documento{{end}}</span>
+              <span class="custom-checkbox-label">Li e confirmo os termos deste documento</span>
             </button>
           </form>
-          {{if .Changed}}
-          <div class="notice-update">O documento foi atualizado enquanto você lia. Revise o texto da página antes de confirmar.</div>
-          {{else if .Outdated}}
-          <div class="notice-update">Este documento foi atualizado após sua confirmação em {{.Record.SignedAt.Format "02/01/2006"}}. Leia a nova versão e confirme novamente.</div>
-          {{else}}
           <div class="confirmed-placeholder"></div>
-          {{end}}
         {{end}}
       {{end}}
     </div>

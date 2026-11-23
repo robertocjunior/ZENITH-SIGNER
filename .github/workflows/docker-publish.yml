@@ -67,12 +67,12 @@ jobs:
           CGO_ENABLED: '1'
         run: go test -race -count=1 -covermode=atomic -coverprofile=coverage.out ./...
 
-      - name: Security regression tests (CSRF, framing, client IP, header injection, webhook, audit chain)
+      - name: Security regression tests (CSRF, framing, client IP, header injection)
         env:
           CGO_ENABLED: '1'
         run: |
           go test -count=1 -v \
-            -run 'CSRF|Confirm|Framing|SecurityHeaders|ClientIP|InvalidDoc|EscapedInRedirects|HeaderInjection|UTF8Subject|LineBreak|NormalizeDocID|RejectsInvalid|OutlineEmbedCheck|Webhook|VerifySignature|Integrity|Seal|Verify|AccessControl|Resign|Tampering' \
+            -run 'CSRF|Confirm|Framing|SecurityHeaders|ClientIP|InvalidDoc|EscapedInRedirects|HeaderInjection|UTF8Subject|LineBreak|NormalizeDocID|RejectsInvalid' \
             ./internal/...
 
       - name: Coverage summary

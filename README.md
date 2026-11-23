@@ -89,8 +89,6 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 - `POST /confirmar` — Registro da assinatura
 - `GET /admin` — Painel gerencial (restrito a `ADMIN_EMAILS`)
 - `GET /admin/export?format=xlsx|csv|xml` — Exportação de relatórios
-- `GET /admin/documentos` — Cadastro de documentos do Outline, versões, decisões e verificação de integridade
-- `POST /webhooks/outline` — Recebe alterações do Outline (assinado com `OUTLINE_WEBHOOK_SECRET`)
 - `GET /healthz` e `GET /livez` — Monitoramento de saúde do serviço
 
 ### Principais variáveis de ambiente (`.env`)
@@ -111,11 +109,6 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `BACKUP_DIR` | Pasta onde os backups são gravados | `<pasta do DB_PATH>/backups` |
 | `BACKUP_INTERVAL` | Intervalo entre backups (`6h`, `24h`...) | `24h` |
 | `BACKUP_RETENTION` | Quantidade de backups mantidos (os mais antigos são apagados) | `7` |
-| `AUDIT_SECRET` | Chave do selo HMAC da cadeia de auditoria. **Defina uma vez e nunca altere** | *(derivada do `SESSION_SECRET`)* |
-| `OUTLINE_URL` | URL do Outline (ex.: `https://wiki.empresa.com.br`) | *(desativado)* |
-| `OUTLINE_API_KEY` | Chave de API do Outline (Settings → API & Apps) | — |
-| `OUTLINE_WEBHOOK_SECRET` | Segredo do webhook do Outline (`ol_whs_...`) | *(sem webhook)* |
-| `OUTLINE_SYNC_INTERVAL` | Intervalo da sincronização periódica com o Outline | `15m` |
 | `SMTP_HOST` / `SMTP_PORT` | Servidor e porta SMTP | `smtp.office365.com` / `587` |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | Credenciais de envio SMTP | — |
 | `SMTP_FROM_EMAIL` / `SMTP_REPLY_EMAIL` | Remetente e e-mail de resposta dos recibos | — |
@@ -125,21 +118,6 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `LOG_LEVEL` | Nível mínimo dos logs (`DEBUG`, `INFO`, `WARN`, `ERROR`) | `INFO` |
 | `LOG_FORMAT` | Formato dos logs (`text` ou `json`) | `text` |
 | `LOG_FILE` | Caminho opcional para salvar logs em arquivo além do `stdout` | *(vazio)* |
-
-### Integração com o Outline
-Em `/admin/documentos` o administrador busca um documento do Outline pelo título (ou cola a URL) e o cadastra. O Zenith Signer então:
-
-1. **Captura a versão 1** do texto e guarda o SHA-256 do conteúdo (a linha do próprio widget é ignorada no cálculo).
-2. **Insere o widget no topo da página** via API do Outline e confirma se ele foi exibido como embed. Se o Outline o exibir como link, ou se a inserção falhar, o painel mostra o link pronto para colar com `/embed`.
-3. **Acompanha alterações**: pelo webhook (`<BASE_URL>/webhooks/outline`, assinado com `OUTLINE_WEBHOOK_SECRET`) e por uma sincronização periódica. Cada mudança de texto vira uma nova versão **aguardando decisão**, com a comparação linha a linha.
-4. **O admin decide**: *exigir nova assinatura* (todos voltam a ver o pedido de confirmação, com aviso de atualização) ou *correção menor* (as assinaturas continuam válidas).
-
-Cada assinatura fica vinculada à versão exata lida (ID da versão e hash do conteúdo). Se a página mudar enquanto o widget estiver aberto, a confirmação é recusada e o colaborador vê a versão nova. Para vincular um documento que já tinha um embed antigo, informe o identificador usado no `doc=` e marque *Manter assinaturas anteriores*.
-
-**Configuração no Outline:** crie uma chave de API (Settings → API & Apps) com uma conta que tenha permissão de edição nos documentos e, opcionalmente, um webhook (Settings → Webhooks) para `<BASE_URL>/webhooks/outline` com os eventos de documentos.
-
-### Cadeia de auditoria
-Cada nova assinatura recebe um número de sequência, o hash da assinatura anterior e um selo HMAC-SHA256 (chave `AUDIT_SECRET`) sobre todos os campos. Em `/admin/documentos` → *Verificar integridade agora*, o sistema recalcula a cadeia e aponta qualquer registro alterado, inserido ou removido diretamente no banco. Assinaturas anteriores a esta funcionalidade continuam válidas, mas ficam fora da cadeia.
 
 ### Backup
 O serviço gera automaticamente uma cópia consistente do banco com `VACUUM INTO` (seguro com a aplicação em uso), verifica a integridade da cópia (`PRAGMA quick_check`) e mantém apenas os `BACKUP_RETENTION` arquivos mais recentes (`signatures-AAAAMMDD-HHMMSS.mmm.db`). No Docker, eles ficam em `./data/backups` no host.
