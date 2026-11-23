@@ -3,6 +3,7 @@ package config
 import (
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ type Config struct {
 	SMTP        SMTPConfig
 	Logging     LoggingConfig
 	Maintenance MaintenanceConfig
+	Backup      BackupConfig
 }
 
 type ServerConfig struct {
@@ -70,6 +72,15 @@ type LoggingConfig struct {
 	FilePath string
 }
 
+type BackupConfig struct {
+	Enabled      bool
+	Dir          string
+	Interval     time.Duration
+	Retention    int
+	InitialDelay time.Duration
+	Timeout      time.Duration
+}
+
 type MaintenanceConfig struct {
 	Enabled  bool
 	Interval time.Duration
@@ -77,6 +88,7 @@ type MaintenanceConfig struct {
 
 // Load loads configuration from environment variables with sensible defaults.
 func Load() *Config {
+	dbPath := getEnv("DB_PATH", "/app/data/signatures.db")
 	baseURL := strings.TrimRight(getEnv("BASE_URL", "http://localhost:8080"), "/")
 
 	cfg := &Config{
@@ -92,7 +104,7 @@ func Load() *Config {
 			TrustedProxies:      parseList(getEnv("TRUSTED_PROXIES", "")),
 		},
 		Database: DatabaseConfig{
-			Path:            getEnv("DB_PATH", "/app/data/signatures.db"),
+			Path:            dbPath,
 			BusyTimeoutMs:   getEnvAsInt("DB_BUSY_TIMEOUT_MS", 5000),
 			MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
 			MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
@@ -124,6 +136,14 @@ func Load() *Config {
 			Level:    parseLogLevel(getEnv("LOG_LEVEL", "INFO")),
 			Format:   strings.ToLower(getEnv("LOG_FORMAT", "text")),
 			FilePath: strings.TrimSpace(getEnv("LOG_FILE", "")),
+		},
+		Backup: BackupConfig{
+			Enabled:      getEnvBool("BACKUP_ENABLED", true),
+			Dir:          getEnv("BACKUP_DIR", filepath.Join(filepath.Dir(dbPath), "backups")),
+			Interval:     getEnvDuration("BACKUP_INTERVAL", 24*time.Hour),
+			Retention:    getEnvAsInt("BACKUP_RETENTION", 7),
+			InitialDelay: getEnvDuration("BACKUP_INITIAL_DELAY", 1*time.Minute),
+			Timeout:      getEnvDuration("BACKUP_TIMEOUT", 5*time.Minute),
 		},
 		Maintenance: MaintenanceConfig{
 			Enabled:  getEnvBool("MAINTENANCE_ENABLED", true),

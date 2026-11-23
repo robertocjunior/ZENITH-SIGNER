@@ -120,3 +120,31 @@ func TestLoadSecurityListsDefaultEmpty(t *testing.T) {
 		t.Errorf("expected empty security lists by default")
 	}
 }
+
+func TestLoadBackupConfig(t *testing.T) {
+	os.Unsetenv("BACKUP_ENABLED")
+	os.Unsetenv("BACKUP_DIR")
+	os.Unsetenv("BACKUP_INTERVAL")
+	os.Unsetenv("BACKUP_RETENTION")
+	t.Setenv("DB_PATH", "/srv/zenith/signatures.db")
+
+	cfg := Load()
+	if !cfg.Backup.Enabled {
+		t.Errorf("backups should be enabled by default")
+	}
+	if cfg.Backup.Dir != "/srv/zenith/backups" {
+		t.Errorf("default backup dir should sit next to the DB, got %s", cfg.Backup.Dir)
+	}
+	if cfg.Backup.Interval != 24*time.Hour || cfg.Backup.Retention != 7 {
+		t.Errorf("unexpected defaults: interval=%v retention=%d", cfg.Backup.Interval, cfg.Backup.Retention)
+	}
+
+	t.Setenv("BACKUP_ENABLED", "false")
+	t.Setenv("BACKUP_DIR", "/mnt/nas/zenith")
+	t.Setenv("BACKUP_INTERVAL", "6h")
+	t.Setenv("BACKUP_RETENTION", "30")
+	cfg = Load()
+	if cfg.Backup.Enabled || cfg.Backup.Dir != "/mnt/nas/zenith" || cfg.Backup.Interval != 6*time.Hour || cfg.Backup.Retention != 30 {
+		t.Errorf("custom backup config not applied: %+v", cfg.Backup)
+	}
+}

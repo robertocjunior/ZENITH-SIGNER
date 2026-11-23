@@ -70,6 +70,13 @@ func RunWithTemplates(templateFS fs.FS) {
 		database.StartMaintenanceWorker(appCtx, db, cfg.Maintenance.Interval, logger)
 	}
 
+	// Start periodic verified backups (VACUUM INTO) with retention.
+	if cfg.Backup.Enabled && cfg.Database.Path != ":memory:" {
+		database.StartBackupWorker(appCtx, db, cfg.Backup, logger)
+	} else {
+		logger.Warn("database backups are disabled (BACKUP_ENABLED=false or in-memory database)")
+	}
+
 	// Initialize application layer services
 	repo := database.NewRepository(db)
 	authSvc := auth.NewService(cfg.Auth)

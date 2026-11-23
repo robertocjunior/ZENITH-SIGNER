@@ -105,6 +105,10 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `SESSION_SECRET` | Chave secreta HMAC para assinatura dos cookies de sessão e dos tokens anti-CSRF | *(aleatória)* |
 | `ALLOWED_EMBED_ORIGINS` | Origens (`https://host[:porta]`, aceita `https://*.dominio`) autorizadas a incorporar `/assinar` em iframe | *(só a própria aplicação)* |
 | `TRUSTED_PROXIES` | IPs/CIDRs de proxies reversos cujos `X-Forwarded-For`/`X-Real-IP` são aceitos | *(nenhum — usa o IP da conexão)* |
+| `BACKUP_ENABLED` | Liga/desliga o backup automático do banco | `true` |
+| `BACKUP_DIR` | Pasta onde os backups são gravados | `<pasta do DB_PATH>/backups` |
+| `BACKUP_INTERVAL` | Intervalo entre backups (`6h`, `24h`...) | `24h` |
+| `BACKUP_RETENTION` | Quantidade de backups mantidos (os mais antigos são apagados) | `7` |
 | `SMTP_HOST` / `SMTP_PORT` | Servidor e porta SMTP | `smtp.office365.com` / `587` |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | Credenciais de envio SMTP | — |
 | `SMTP_FROM_EMAIL` / `SMTP_REPLY_EMAIL` | Remetente e e-mail de resposta dos recibos | — |
@@ -114,6 +118,13 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `LOG_LEVEL` | Nível mínimo dos logs (`DEBUG`, `INFO`, `WARN`, `ERROR`) | `INFO` |
 | `LOG_FORMAT` | Formato dos logs (`text` ou `json`) | `text` |
 | `LOG_FILE` | Caminho opcional para salvar logs em arquivo além do `stdout` | *(vazio)* |
+
+### Backup
+O serviço gera automaticamente uma cópia consistente do banco com `VACUUM INTO` (seguro com a aplicação em uso), verifica a integridade da cópia (`PRAGMA quick_check`) e mantém apenas os `BACKUP_RETENTION` arquivos mais recentes (`signatures-AAAAMMDD-HHMMSS.mmm.db`). No Docker, eles ficam em `./data/backups` no host.
+
+> Os backups ficam no mesmo disco do banco. Para proteção contra perda do servidor, copie periodicamente `./data/backups` para outro local (NAS, OneDrive, outro servidor).
+
+Para restaurar: pare o container, substitua `./data/signatures.db` pelo arquivo de backup desejado (removendo `signatures.db-wal` e `signatures.db-shm`, se existirem) e suba novamente.
 
 ### Segurança
 - **Anti-CSRF:** o `POST /confirmar` exige um token HMAC vinculado à sessão (campo `csrf_token`, gerado no widget) e rejeita requisições com cabeçalho `Origin` diferente de `BASE_URL`.
