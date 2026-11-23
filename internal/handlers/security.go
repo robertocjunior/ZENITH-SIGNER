@@ -190,9 +190,20 @@ func ParseEmbedOrigins(entries []string) ([]string, error) {
 	return out, nil
 }
 
+// anonymousEmbedPolicy is sent on /assinar when the request carries no session.
+//
+// Without a session the widget only shows a "sign in" link that navigates the
+// top window, so there is nothing to clickjack. Allowing any ancestor here is
+// required by Outline: when an embed is created it checks the URL server-side
+// (POST /urls.checkEmbed, no cookies) and refuses any frame-ancestors list that
+// names specific origins without "*".
+const anonymousEmbedPolicy = "frame-ancestors *"
+
 // SecurityHeaders sets baseline security headers and the framing policy:
-// /assinar may only be framed by the application itself and the configured
-// embed origins; every other route (admin, auth, home...) cannot be framed.
+//   - /assinar with a session (the user can sign): only the application itself
+//     and the configured embed origins may frame it;
+//   - /assinar without a session: may be framed anywhere (see anonymousEmbedPolicy);
+//   - every other route (admin, auth, home...) cannot be framed.
 func SecurityHeaders(embedOrigins []string) func(http.Handler) http.Handler {
 	embedPolicy := "frame-ancestors 'self'"
 	if len(embedOrigins) > 0 {
@@ -205,7 +216,11 @@ func SecurityHeaders(embedOrigins []string) func(http.Handler) http.Handler {
 			h.Set("X-Content-Type-Options", "nosniff")
 			h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 			if r.URL.Path == embedPath {
-				h.Set("Content-Security-Policy", embedPolicy)
+				if hasSessionCookie(r) {
+					h.Set("Content-Security-Policy", embedPolicy)
+				} else {
+					h.Set("Content-Security-Policy", anonymousEmbedPolicy)
+				}
 			} else {
 				h.Set("Content-Security-Policy", "frame-ancestors 'none'")
 				h.Set("X-Frame-Options", "DENY")
@@ -213,4 +228,11 @@ func SecurityHeaders(embedOrigins []string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// hasSessionCookie reports whether the request carries a session cookie at all.
+// Any value (even an invalid one) selects the restrictive policy, erring on the safe side.
+func hasSessionCookie(r *http.Request) bool {
+	_, err := r.Cookie("user_email")
+	return err == nil
 }

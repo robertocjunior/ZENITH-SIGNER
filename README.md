@@ -128,7 +128,7 @@ Para restaurar: pare o container, substitua `./data/signatures.db` pelo arquivo 
 
 ### Segurança
 - **Anti-CSRF:** o `POST /confirmar` exige um token HMAC vinculado à sessão (campo `csrf_token`, gerado no widget) e rejeita requisições com cabeçalho `Origin` diferente de `BASE_URL`.
-- **Anti-clickjacking:** `/assinar` só pode ser incorporado pelas origens de `ALLOWED_EMBED_ORIGINS` (`Content-Security-Policy: frame-ancestors`); todas as demais rotas, inclusive `/admin`, recusam ser exibidas em iframe.
+- **Anti-clickjacking:** com o colaborador logado (quando é possível assinar), `/assinar` só pode ser incorporado pelas origens de `ALLOWED_EMBED_ORIGINS` (`Content-Security-Policy: frame-ancestors`). Sem login, o widget mostra apenas o botão de entrar e aceita qualquer origem — necessário para a verificação do Outline ao criar um embed (`/urls.checkEmbed`). Todas as demais rotas, inclusive `/admin`, recusam ser exibidas em iframe.
 - **IP auditável:** `X-Forwarded-For`/`X-Real-IP` só são considerados quando a conexão vem de um proxy listado em `TRUSTED_PROXIES`.
 - **Uma assinatura por colaborador e documento:** garantida por índice único no banco (`document_name`, `user_email`), inclusive em cliques simultâneos. Ao atualizar uma base antiga que já tenha duplicatas, a migração mantém a primeira assinatura de cada colaborador e move as demais para a tabela `signatures_duplicates`; os hashes movidos continuam válidos no validador público.
 - **Identificador do documento:** `doc` aceita até 200 caracteres (acentos, espaços e pontuação), recusando caracteres de controle e invisíveis; os cabeçalhos do e-mail são sanitizados e o assunto é codificado em RFC 2047.

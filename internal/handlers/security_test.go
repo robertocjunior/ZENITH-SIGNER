@@ -168,14 +168,37 @@ func TestSecurityHeadersFramingPolicy(t *testing.T) {
 	t.Setenv("ALLOWED_EMBED_ORIGINS", "https://wiki.empresa.com.br")
 	router, _ := setupTestRouter(t)
 
+	// Logged-in user (can sign): restricted to the configured origins.
+	loggedReq := httptest.NewRequest(http.MethodGet, "/assinar?doc=X", nil)
+	loggedReq.AddCookie(testSession().SignedCookie("user_email", "maria@empresa.com"))
 	embed := httptest.NewRecorder()
-	router.ServeHTTP(embed, httptest.NewRequest(http.MethodGet, "/assinar?doc=X", nil))
+	router.ServeHTTP(embed, loggedReq)
 	csp := embed.Header().Get("Content-Security-Policy")
 	if csp != "frame-ancestors 'self' https://wiki.empresa.com.br" {
-		t.Errorf("unexpected CSP on /assinar: %q", csp)
+		t.Errorf("unexpected CSP on /assinar with session: %q", csp)
 	}
 	if xfo := embed.Header().Get("X-Frame-Options"); xfo != "" {
 		t.Errorf("/assinar must not send X-Frame-Options (it would block allowed embeds), got %q", xfo)
+	}
+
+	// Even an invalid/tampered session cookie selects the restrictive policy.
+	tampered := httptest.NewRequest(http.MethodGet, "/assinar?doc=X", nil)
+	tampered.AddCookie(&http.Cookie{Name: "user_email", Value: "forged"})
+	recTampered := httptest.NewRecorder()
+	router.ServeHTTP(recTampered, tampered)
+	if got := recTampered.Header().Get("Content-Security-Policy"); got != "frame-ancestors 'self' https://wiki.empresa.com.br" {
+		t.Errorf("tampered cookie must get restrictive CSP, got %q", got)
+	}
+
+	// Anonymous (e.g. Outline's server-side /urls.checkEmbed): embeddable anywhere,
+	// since the page only offers a top-level login link.
+	anon := httptest.NewRecorder()
+	router.ServeHTTP(anon, httptest.NewRequest(http.MethodGet, "/assinar?doc=X", nil))
+	if got := anon.Header().Get("Content-Security-Policy"); got != "frame-ancestors *" {
+		t.Errorf("anonymous /assinar should allow any ancestor, got %q", got)
+	}
+	if strings.Contains(anon.Body.String(), "<form") {
+		t.Errorf("anonymous widget must not render a signing form")
 	}
 
 	for _, path := range []string{"/", "/admin", "/admin/export?format=csv", "/auth/login", "/confirmar", "/healthz"} {
@@ -195,8 +218,10 @@ func TestSecurityHeadersFramingPolicy(t *testing.T) {
 
 func TestSecurityHeadersDefaultSelfOnly(t *testing.T) {
 	router, _ := setupTestRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/assinar?doc=X", nil)
+	req.AddCookie(testSession().SignedCookie("user_email", "maria@empresa.com"))
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/assinar?doc=X", nil))
+	router.ServeHTTP(rec, req)
 	if csp := rec.Header().Get("Content-Security-Policy"); csp != "frame-ancestors 'self'" {
 		t.Errorf("expected self-only framing by default, got %q", csp)
 	}
@@ -424,5 +449,86 @@ func TestDocWithSpecialCharsIsEscapedInRedirects(t *testing.T) {
 	back, _ := url.Parse(rec.Header().Get("Location"))
 	if back == nil || back.Query().Get("doc") != doc {
 		t.Errorf("widget redirect lost doc: %q", rec.Header().Get("Location"))
+	}
+}
+
+// TestOutlineEmbedCheckAcceptsWidget mirrors Outline's server-side embeddability
+// check (server/utils/embeds.ts isBlockedByCSP / isBlockedByXFrameOptions) so a
+// regression that breaks creating embeds in Outline fails the build.
+func TestOutlineEmbedCheckAcceptsWidget(t *testing.T) {
+	t.Setenv("ALLOWED_EMBED_ORIGINS", "https://wiki.empresa.com.br")
+	router, _ := setupTestRouter(t)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/assinar?doc=Politica-RH", nil))
+
+	if rec.Code >= 400 {
+		t.Fatalf("Outline treats HTTP >= 400 as not embeddable, got %d", rec.Code)
+	}
+	if xfo := strings.ToUpper(rec.Header().Get("X-Frame-Options")); xfo == "DENY" || xfo == "SAMEORIGIN" || strings.HasPrefix(xfo, "ALLOW-FROM") {
+		t.Fatalf("X-Frame-Options %q blocks Outline embeds", xfo)
+	}
+	if coep := rec.Header().Get("Cross-Origin-Embedder-Policy"); coep != "" && coep != "unsafe-none" {
+		t.Fatalf("COEP %q blocks Outline embeds", coep)
+	}
+	if outlineBlockedByCSP(rec.Header().Get("Content-Security-Policy")) {
+		t.Fatalf("CSP %q is rejected by Outline's embed check", rec.Header().Get("Content-Security-Policy"))
+	}
+}
+
+// outlineBlockedByCSP is a Go port of Outline's isBlockedByCSP.
+func outlineBlockedByCSP(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, policy := range strings.Split(value, ",") {
+		var sources []string
+		found := false
+		for _, d := range strings.Split(policy, ";") {
+			parts := strings.Fields(strings.TrimSpace(d))
+			if len(parts) > 0 && strings.EqualFold(parts[0], "frame-ancestors") {
+				sources, found = parts[1:], true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+		if len(sources) == 1 && (sources[0] == "'none'" || sources[0] == "'self'") {
+			return true
+		}
+		hasStar := false
+		onlyKeywords := true
+		for _, s := range sources {
+			if s == "*" {
+				hasStar = true
+			}
+			if s != "'self'" && s != "'none'" {
+				onlyKeywords = false
+			}
+		}
+		if hasStar {
+			continue
+		}
+		if len(sources) > 0 && !onlyKeywords {
+			return true
+		}
+	}
+	return false
+}
+
+func TestOutlineBlockedByCSPPort(t *testing.T) {
+	cases := map[string]bool{
+		"":                                   false,
+		"frame-ancestors *":                  false,
+		"frame-ancestors 'none'":             true,
+		"frame-ancestors 'self'":             true,
+		"frame-ancestors 'self' https://a.b": true,
+		"default-src 'self'":                 false,
+	}
+	for csp, want := range cases {
+		if got := outlineBlockedByCSP(csp); got != want {
+			t.Errorf("outlineBlockedByCSP(%q) = %v, want %v", csp, got, want)
+		}
 	}
 }
