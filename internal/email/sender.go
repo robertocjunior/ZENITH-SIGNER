@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
+	"mime"
 	"net/smtp"
 	"strings"
 	"time"
@@ -128,7 +129,7 @@ type receiptTemplateData struct {
 }
 
 func BuildReceiptMessage(cfg config.SMTPConfig, toEmail, toName, docName, hashID, dateStr string) (string, string) {
-	subject := fmt.Sprintf("Confirmação de Leitura: %s", docName)
+	subject := sanitizeHeaderValue(fmt.Sprintf("Confirmação de Leitura: %s", docName))
 
 	accentColor := strings.TrimSpace(cfg.AccentColor)
 	if accentColor == "" {
@@ -153,15 +154,40 @@ func BuildReceiptMessage(cfg config.SMTPConfig, toEmail, toName, docName, hashID
 		SignatureName: signatureName,
 	})
 
-	msg := "From: " + cfg.FromEmail + "\r\n" +
-		"To: " + toEmail + "\r\n" +
-		"Reply-To: " + cfg.ReplyEmail + "\r\n" +
-		"Subject: " + subject + "\r\n" +
-		"MIME-Version: 1.0\r\n" +
-		"Content-Type: text/html; charset=UTF-8\r\n\r\n" +
-		htmlBuf.String()
+	var hdr strings.Builder
+	writeHeader(&hdr, "From", cfg.FromEmail)
+	writeHeader(&hdr, "To", toEmail)
+	if strings.TrimSpace(cfg.ReplyEmail) != "" {
+		writeHeader(&hdr, "Reply-To", cfg.ReplyEmail)
+	}
+	// RFC 2047 encoding keeps accented subjects readable and the value on one header line.
+	writeHeader(&hdr, "Subject", mime.QEncoding.Encode("utf-8", sanitizeHeaderValue(subject)))
+	writeHeader(&hdr, "MIME-Version", "1.0")
+	writeHeader(&hdr, "Content-Type", "text/html; charset=UTF-8")
+
+	msg := hdr.String() + "\r\n" + htmlBuf.String()
 
 	return subject, msg
+}
+
+// sanitizeHeaderValue removes characters that could terminate a header line
+// and start a new one (header injection), collapsing them into spaces.
+func sanitizeHeaderValue(v string) string {
+	v = strings.Map(func(r rune) rune {
+		switch r {
+		case '\r', '\n', '\x00', '\u0085', '\u2028', '\u2029':
+			return ' '
+		}
+		return r
+	}, v)
+	return strings.TrimSpace(v)
+}
+
+func writeHeader(b *strings.Builder, name, value string) {
+	b.WriteString(name)
+	b.WriteString(": ")
+	b.WriteString(sanitizeHeaderValue(value))
+	b.WriteString("\r\n")
 }
 
 func (s *office365Sender) SendReceipt(ctx context.Context, toEmail, toName, docName, hashID, dateStr string) error {
@@ -171,6 +197,10 @@ func (s *office365Sender) SendReceipt(ctx context.Context, toEmail, toName, docN
 			slog.String("doc", docName),
 		)
 		return nil
+	}
+
+	if strings.ContainsAny(toEmail, "\r\n") {
+		return errors.New("invalid recipient address")
 	}
 
 	_, msg := BuildReceiptMessage(s.cfg, toEmail, toName, docName, hashID, dateStr)

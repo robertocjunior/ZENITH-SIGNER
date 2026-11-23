@@ -92,3 +92,31 @@ func TestLoadCustom(t *testing.T) {
 		t.Errorf("expected custom signature name, got %s", cfg.SMTP.SignatureName)
 	}
 }
+
+func TestLoadSecurityLists(t *testing.T) {
+	t.Setenv("ALLOWED_EMBED_ORIGINS", " https://wiki.empresa.com.br , https://intranet.empresa.com.br,,")
+	t.Setenv("TRUSTED_PROXIES", "10.0.0.0/8, 172.17.0.1 ")
+
+	cfg := Load()
+	wantOrigins := []string{"https://wiki.empresa.com.br", "https://intranet.empresa.com.br"}
+	if len(cfg.Server.AllowedEmbedOrigins) != len(wantOrigins) {
+		t.Fatalf("expected %v, got %v", wantOrigins, cfg.Server.AllowedEmbedOrigins)
+	}
+	for i, o := range wantOrigins {
+		if cfg.Server.AllowedEmbedOrigins[i] != o {
+			t.Errorf("origin[%d]: expected %s, got %s", i, o, cfg.Server.AllowedEmbedOrigins[i])
+		}
+	}
+	if len(cfg.Server.TrustedProxies) != 2 || cfg.Server.TrustedProxies[1] != "172.17.0.1" {
+		t.Errorf("unexpected trusted proxies: %v", cfg.Server.TrustedProxies)
+	}
+}
+
+func TestLoadSecurityListsDefaultEmpty(t *testing.T) {
+	os.Unsetenv("ALLOWED_EMBED_ORIGINS")
+	os.Unsetenv("TRUSTED_PROXIES")
+	cfg := Load()
+	if len(cfg.Server.AllowedEmbedOrigins) != 0 || len(cfg.Server.TrustedProxies) != 0 {
+		t.Errorf("expected empty security lists by default")
+	}
+}

@@ -71,12 +71,12 @@ func (s *signerService) GetSignature(ctx context.Context, doc, email string) (*m
 }
 
 func (s *signerService) SignDocument(ctx context.Context, req SignRequest) (*models.SignatureRecord, error) {
-	doc := strings.TrimSpace(req.Doc)
+	doc, err := models.NormalizeDocID(req.Doc)
+	if err != nil {
+		return nil, err
+	}
 	emailAddr := strings.ToLower(strings.TrimSpace(req.UserEmail))
 
-	if doc == "" {
-		return nil, errors.New("document identifier cannot be empty")
-	}
 	if emailAddr == "" {
 		return nil, errors.New("user email cannot be empty")
 	}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"zenith-signer/internal/config"
 	"zenith-signer/internal/database"
+	"zenith-signer/internal/models"
 )
 
 type dummyEmailSender struct {
@@ -83,5 +85,40 @@ func TestSignerServiceSignAndDuplicate(t *testing.T) {
 	}
 	if duplicateRecord.HashID != record.HashID {
 		t.Errorf("expected matching hash ID for duplicate sign")
+	}
+}
+
+func TestSignerServiceRejectsInvalidDoc(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	db, err := database.Open(config.DatabaseConfig{Path: ":memory:"}, logger)
+	if err != nil {
+		t.Fatalf("failed to open memory db: %v", err)
+	}
+	ctx := context.Background()
+	_ = database.Migrate(ctx, db, logger)
+	repo := database.NewRepository(db)
+	sender := &dummyEmailSender{}
+	svc := NewSignerService(repo, sender, logger)
+
+	for _, doc := range []string{"", "  ", "Doc\r\nBcc: evil@example.com", "Doc\x00"} {
+		_, err := svc.SignDocument(ctx, SignRequest{Doc: doc, UserEmail: "maria@empresa.com"})
+		if err == nil {
+			t.Errorf("expected error for doc %q", doc)
+		}
+	}
+	if !errors.Is(func() error {
+		_, err := svc.SignDocument(ctx, SignRequest{Doc: "a\nb", UserEmail: "maria@empresa.com"})
+		return err
+	}(), models.ErrDocIDInvalid) {
+		t.Errorf("expected ErrDocIDInvalid")
+	}
+
+	records, _ := repo.List(ctx, models.FilterCriteria{})
+	if len(records) != 0 {
+		t.Errorf("no record should be stored, got %d", len(records))
+	}
+	_ = svc.Wait(ctx)
+	if sender.sentCount != 0 {
+		t.Errorf("no e-mail should be sent, got %d", sender.sentCount)
 	}
 }

@@ -102,7 +102,9 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `AZURE_CLIENT_ID` | Client ID da aplicação no Azure | — |
 | `AZURE_CLIENT_SECRET` | Client Secret da aplicação no Azure | — |
 | `ADMIN_EMAILS` | E-mails de administradores (separados por vírgula) | — |
-| `SESSION_SECRET` | Chave secreta HMAC para assinatura dos cookies de sessão | *(aleatória)* |
+| `SESSION_SECRET` | Chave secreta HMAC para assinatura dos cookies de sessão e dos tokens anti-CSRF | *(aleatória)* |
+| `ALLOWED_EMBED_ORIGINS` | Origens (`https://host[:porta]`, aceita `https://*.dominio`) autorizadas a incorporar `/assinar` em iframe | *(só a própria aplicação)* |
+| `TRUSTED_PROXIES` | IPs/CIDRs de proxies reversos cujos `X-Forwarded-For`/`X-Real-IP` são aceitos | *(nenhum — usa o IP da conexão)* |
 | `SMTP_HOST` / `SMTP_PORT` | Servidor e porta SMTP | `smtp.office365.com` / `587` |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | Credenciais de envio SMTP | — |
 | `SMTP_FROM_EMAIL` / `SMTP_REPLY_EMAIL` | Remetente e e-mail de resposta dos recibos | — |
@@ -112,6 +114,12 @@ Com um clique, é possível exportar o relatório filtrado para **Excel (`.xlsx`
 | `LOG_LEVEL` | Nível mínimo dos logs (`DEBUG`, `INFO`, `WARN`, `ERROR`) | `INFO` |
 | `LOG_FORMAT` | Formato dos logs (`text` ou `json`) | `text` |
 | `LOG_FILE` | Caminho opcional para salvar logs em arquivo além do `stdout` | *(vazio)* |
+
+### Segurança
+- **Anti-CSRF:** o `POST /confirmar` exige um token HMAC vinculado à sessão (campo `csrf_token`, gerado no widget) e rejeita requisições com cabeçalho `Origin` diferente de `BASE_URL`.
+- **Anti-clickjacking:** `/assinar` só pode ser incorporado pelas origens de `ALLOWED_EMBED_ORIGINS` (`Content-Security-Policy: frame-ancestors`); todas as demais rotas, inclusive `/admin`, recusam ser exibidas em iframe.
+- **IP auditável:** `X-Forwarded-For`/`X-Real-IP` só são considerados quando a conexão vem de um proxy listado em `TRUSTED_PROXIES`.
+- **Identificador do documento:** `doc` aceita até 200 caracteres (acentos, espaços e pontuação), recusando caracteres de controle e invisíveis; os cabeçalhos do e-mail são sanitizados e o assunto é codificado em RFC 2047.
 
 Para rodar localmente com Go 1.22+ (`CGO_ENABLED=1`) ou executar os testes:
 ```bash

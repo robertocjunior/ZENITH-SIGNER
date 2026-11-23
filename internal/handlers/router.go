@@ -44,12 +44,22 @@ func NewRouter(p RouterParams) (http.Handler, error) {
 		return nil, fmt.Errorf("failed to parse templates/admin.html: %w", err)
 	}
 
+	embedOrigins, err := ParseEmbedOrigins(p.Config.Server.AllowedEmbedOrigins)
+	if err != nil {
+		return nil, err
+	}
+
+	ipResolver, err := NewClientIPResolver(p.Config.Server.TrustedProxies)
+	if err != nil {
+		return nil, err
+	}
+
 	sessionMgr := NewSessionManager(p.Config.Auth.SessionSecret, p.Config.Server.BaseURL)
 
 	homeHandler := NewHomeHandler(p.Repo, homeTmpl, p.Config.Server.AppName, p.Logger)
 	embedHandler := NewEmbedHandler(p.SignerSvc, embedTmpl, sessionMgr)
 	authHandler := NewAuthHandler(p.AuthSvc, sessionMgr, p.Logger)
-	signHandler := NewSignHandler(p.SignerSvc, sessionMgr, p.Logger)
+	signHandler := NewSignHandler(p.SignerSvc, sessionMgr, p.Config.Server.BaseURL, p.Logger)
 	adminHandler := NewAdminHandler(p.Repo, p.AuthSvc, adminTmpl, p.Config.Server.AppName, sessionMgr, p.Logger)
 	exportHandler := NewExportHandler(p.Repo, p.AuthSvc, sessionMgr, p.Logger)
 	healthHandler := NewHealthHandler(p.DB, p.StartTime)
@@ -72,10 +82,11 @@ func NewRouter(p RouterParams) (http.Handler, error) {
 	mux.HandleFunc("/healthz", healthHandler.HandleHealth)
 	mux.HandleFunc("/livez", healthHandler.HandleLive)
 
-	// Middleware chain: Recovery -> RequestLogger -> SecurityHeaders -> Router Mux
+	// Middleware chain: Recovery -> ClientIP -> RequestLogger -> SecurityHeaders -> Router Mux
 	var handler http.Handler = mux
-	handler = SecurityHeaders(handler)
+	handler = SecurityHeaders(embedOrigins)(handler)
 	handler = RequestLogger(p.Logger)(handler)
+	handler = ClientIP(ipResolver)(handler)
 	handler = Recovery(p.Logger)(handler)
 
 	return handler, nil

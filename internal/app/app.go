@@ -37,6 +37,13 @@ func RunWithTemplates(templateFS fs.FS) {
 		slog.String("log_level", cfg.Logging.Level.String()),
 	)
 
+	if len(cfg.Server.AllowedEmbedOrigins) == 0 {
+		logger.Warn("ALLOWED_EMBED_ORIGINS is empty: /assinar can only be embedded by this application itself; set it to your wiki/intranet origin(s)")
+	}
+	if len(cfg.Server.TrustedProxies) == 0 {
+		logger.Warn("TRUSTED_PROXIES is empty: X-Forwarded-For/X-Real-IP are ignored and the TCP peer IP is recorded; set it when running behind a reverse proxy")
+	}
+
 	// Initialize database
 	db, err := database.Open(cfg.Database, logger)
 	if err != nil {

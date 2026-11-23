@@ -256,6 +256,7 @@
         {{else}}
           <form method="POST" action="/confirmar" class="action-row">
             <input type="hidden" name="doc" value="{{.Doc}}">
+            <input type="hidden" name="{{.CSRFField}}" value="{{.CSRFToken}}">
             <button type="submit" class="custom-checkbox-btn">
               <div class="custom-checkbox-box"></div>
               <span class="custom-checkbox-label">Li e confirmo os termos deste documento</span>

@@ -6,7 +6,13 @@ on:
       - main
     paths-ignore:
       - '**.md'
-      - 'README.md'
+      - 'docs/**'
+      - '.gitignore'
+      - '.env.example'
+      - 'LICENSE'
+  pull_request:
+    paths-ignore:
+      - '**.md'
       - 'docs/**'
       - '.gitignore'
       - '.env.example'
@@ -17,9 +23,76 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test-and-build:
-    name: Test and Build Container
+  test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Verify go.mod / go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Check formatting (gofmt)
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::Files not formatted with gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Static analysis (go vet)
+        run: go vet ./...
+
+      # CGO is required by go-sqlite3 and by the race detector.
+      - name: Run test suite (race detector + coverage)
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race -count=1 -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Security regression tests (CSRF, framing, client IP, header injection)
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          go test -count=1 -v \
+            -run 'CSRF|Confirm|Framing|SecurityHeaders|ClientIP|InvalidDoc|EscapedInRedirects|HeaderInjection|UTF8Subject|LineBreak|NormalizeDocID|RejectsInvalid' \
+            ./internal/...
+
+      - name: Coverage summary
+        run: |
+          go tool cover -func=coverage.out | tail -1
+          echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 14
+
+  build:
+    name: Build Container
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,20 +102,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-          check-latest: true
-
-      - name: Run test suite
-        run: |
-          go test -v ./...
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry (GHCR)
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -58,12 +122,14 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short,prefix=sha-
             type=ref,event=tag
+            type=ref,event=pr
 
-      - name: Build and push Docker image
+      # Pull requests only validate that the image builds; images are pushed from main.
+      - name: Build (and push on main) Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

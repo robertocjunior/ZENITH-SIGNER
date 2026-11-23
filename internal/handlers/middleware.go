@@ -39,7 +39,7 @@ func generateRequestID() string {
 
 type responseWriterInterceptor struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode   int
 	bytesWritten int
 }
 
@@ -136,27 +136,6 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// SecurityHeaders sets basic security headers while allowing iframe embedding for /assinar.
-func SecurityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-XSS-Protection", "1; mode=block")
-		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		next.ServeHTTP(w, r)
-	})
-}
-
-func extractClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
-	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-	return r.RemoteAddr
-}
-
 var sessionCookieNames = []string{
 	"user_email",
 	"user_name",
@@ -250,6 +229,24 @@ func (sm *SessionManager) GetCookie(r *http.Request, name string) string {
 		return ""
 	}
 	return val
+}
+
+// CSRFToken derives an anti-CSRF token bound to the session identity.
+// The token is an HMAC of the user e-mail with a domain separator, so it
+// cannot be computed without the server secret and is distinct from cookie signatures.
+func (sm *SessionManager) CSRFToken(sessionEmail string) string {
+	mac := hmac.New(sha256.New, sm.secret)
+	mac.Write([]byte("csrf\x00"))
+	mac.Write([]byte(strings.ToLower(strings.TrimSpace(sessionEmail))))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// ValidCSRFToken checks token against the expected token for sessionEmail in constant time.
+func (sm *SessionManager) ValidCSRFToken(sessionEmail, token string) bool {
+	if strings.TrimSpace(sessionEmail) == "" || token == "" {
+		return false
+	}
+	return hmac.Equal([]byte(token), []byte(sm.CSRFToken(sessionEmail)))
 }
 
 func (sm *SessionManager) ClearSession(w http.ResponseWriter) {

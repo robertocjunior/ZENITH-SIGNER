@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"fmt"
+	"errors"
 	"html/template"
 	"net/http"
 
@@ -24,9 +24,13 @@ func NewEmbedHandler(signerSvc service.SignerService, tmpl *template.Template, s
 }
 
 func (h *EmbedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	doc := extractDocParam(r)
-	if doc == "" {
-		http.Error(w, "Identificador de documento 'doc' não informado.", http.StatusBadRequest)
+	doc, err := models.NormalizeDocID(extractDocParam(r))
+	if err != nil {
+		msg := "Identificador de documento 'doc' inválido."
+		if errors.Is(err, models.ErrDocIDEmpty) {
+			msg = "Identificador de documento 'doc' não informado."
+		}
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
@@ -36,8 +40,9 @@ func (h *EmbedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	isLogged := userEmail != ""
 
 	var signedRecord *models.SignatureRecord
+	csrfToken := ""
 	if isLogged {
-		var err error
+		csrfToken = h.session.CSRFToken(userEmail)
 		signedRecord, err = h.signerSvc.GetSignature(r.Context(), doc, userEmail)
 		if err != nil {
 			// Non-fatal, just log and render as unsigned
@@ -53,7 +58,9 @@ func (h *EmbedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"UserDepartment": userDept,
 		"Record":         signedRecord,
 		"IsSigned":       signedRecord != nil,
-		"LoginURL":       fmt.Sprintf("/auth/login?doc=%s&return=/assinar%%3Fdoc%%3D%s", doc, doc),
+		"LoginURL":       loginURLFor(doc),
+		"CSRFField":      csrfFieldName,
+		"CSRFToken":      csrfToken,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

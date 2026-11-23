@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"zenith-signer/internal/auth"
+	"zenith-signer/internal/models"
 )
 
 const oauthStateCookieName = "oauth_state"
@@ -46,10 +46,12 @@ func sanitizeReturnURL(raw, fallback string) string {
 }
 
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	doc := extractDocParam(r)
-	fallbackReturn := "/assinar"
-	if doc != "" {
-		fallbackReturn = "/assinar?doc=" + url.QueryEscape(doc)
+	fallbackReturn := embedPath
+	doc, err := models.NormalizeDocID(extractDocParam(r))
+	if err != nil {
+		doc = ""
+	} else {
+		fallbackReturn = embedURLFor(doc)
 	}
 	returnURL := sanitizeReturnURL(r.URL.Query().Get("return"), fallbackReturn)
 

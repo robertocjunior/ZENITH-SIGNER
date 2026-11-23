@@ -1,43 +1,95 @@
 package handlers
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"zenith-signer/internal/models"
 	"zenith-signer/internal/service"
 )
+
+// csrfFieldName is the form field carrying the anti-CSRF token on POST /confirmar.
+const csrfFieldName = "csrf_token"
 
 type SignHandler struct {
 	signerSvc service.SignerService
 	session   *SessionManager
+	appOrigin string
 	logger    *slog.Logger
 }
 
-func NewSignHandler(signerSvc service.SignerService, session *SessionManager, logger *slog.Logger) *SignHandler {
+func NewSignHandler(signerSvc service.SignerService, session *SessionManager, baseURL string, logger *slog.Logger) *SignHandler {
 	return &SignHandler{
 		signerSvc: signerSvc,
 		session:   session,
+		appOrigin: originOf(baseURL),
 		logger:    logger,
 	}
 }
 
+// originOf returns the scheme://host[:port] origin of a URL, lower-cased.
+func originOf(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return strings.ToLower(u.Scheme + "://" + u.Host)
+}
+
+// loginURLFor builds the login URL that returns the user to the widget of doc.
+func loginURLFor(doc string) string {
+	q := url.Values{}
+	q.Set("doc", doc)
+	q.Set("return", embedURLFor(doc))
+	return "/auth/login?" + q.Encode()
+}
+
+// embedURLFor builds the widget URL for doc with proper escaping.
+func embedURLFor(doc string) string {
+	return embedPath + "?doc=" + url.QueryEscape(doc)
+}
+
+// sameOriginRequest rejects requests whose Origin header (sent by browsers on
+// cross-site POSTs) does not match the application origin. Requests without
+// an Origin header are left to the CSRF token check.
+func (h *SignHandler) sameOriginRequest(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	return h.appOrigin != "" && strings.EqualFold(origin, h.appOrigin)
+}
+
 func (h *SignHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
 		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 		return
 	}
 
-	doc := strings.TrimSpace(r.FormValue("doc"))
-	if doc == "" {
-		http.Error(w, "Documento não informado", http.StatusBadRequest)
+	doc, err := models.NormalizeDocID(r.PostFormValue("doc"))
+	if err != nil {
+		http.Error(w, "Identificador de documento inválido.", http.StatusBadRequest)
 		return
 	}
 
 	userEmail := h.session.GetCookie(r, "user_email")
 	if userEmail == "" {
-		http.Redirect(w, r, fmt.Sprintf("/auth/login?doc=%s&return=/assinar%%3Fdoc%%3D%s", doc, doc), http.StatusSeeOther)
+		http.Redirect(w, r, loginURLFor(doc), http.StatusSeeOther)
+		return
+	}
+
+	if !h.sameOriginRequest(r) || !h.session.ValidCSRFToken(userEmail, r.PostFormValue(csrfFieldName)) {
+		h.logger.Warn("signature rejected: CSRF validation failed",
+			slog.String("request_id", RequestIDFromContext(r.Context())),
+			slog.String("doc", doc),
+			slog.String("email", userEmail),
+			slog.String("origin", r.Header.Get("Origin")),
+			slog.String("ip", extractClientIP(r)),
+		)
+		http.Error(w, "Requisição inválida ou expirada. Recarregue a página e tente novamente.", http.StatusForbidden)
 		return
 	}
 
@@ -52,8 +104,7 @@ func (h *SignHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		UserAgent:      r.UserAgent(),
 	}
 
-	_, err := h.signerSvc.SignDocument(r.Context(), req)
-	if err != nil {
+	if _, err := h.signerSvc.SignDocument(r.Context(), req); err != nil {
 		h.logger.Error("error registering signature",
 			slog.String("request_id", RequestIDFromContext(r.Context())),
 			slog.String("doc", doc),
@@ -64,5 +115,5 @@ func (h *SignHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/assinar?doc="+doc, http.StatusSeeOther)
+	http.Redirect(w, r, embedURLFor(doc), http.StatusSeeOther)
 }

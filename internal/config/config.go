@@ -26,6 +26,10 @@ type ServerConfig struct {
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
+	// AllowedEmbedOrigins lists the origins (scheme://host[:port]) allowed to embed /assinar in an iframe.
+	AllowedEmbedOrigins []string
+	// TrustedProxies lists IPs/CIDRs of reverse proxies whose X-Forwarded-For / X-Real-IP headers are trusted.
+	TrustedProxies []string
 }
 
 type DatabaseConfig struct {
@@ -77,13 +81,15 @@ func Load() *Config {
 
 	cfg := &Config{
 		Server: ServerConfig{
-			AppName:         getEnv("APP_NAME", "Zenith Signer"),
-			Port:            getEnv("PORT", "8080"),
-			BaseURL:         baseURL,
-			ReadTimeout:     getEnvDuration("HTTP_READ_TIMEOUT", 15*time.Second),
-			WriteTimeout:    getEnvDuration("HTTP_WRITE_TIMEOUT", 30*time.Second),
-			IdleTimeout:     getEnvDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
-			ShutdownTimeout: getEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second),
+			AppName:             getEnv("APP_NAME", "Zenith Signer"),
+			Port:                getEnv("PORT", "8080"),
+			BaseURL:             baseURL,
+			ReadTimeout:         getEnvDuration("HTTP_READ_TIMEOUT", 15*time.Second),
+			WriteTimeout:        getEnvDuration("HTTP_WRITE_TIMEOUT", 30*time.Second),
+			IdleTimeout:         getEnvDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
+			ShutdownTimeout:     getEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second),
+			AllowedEmbedOrigins: parseList(getEnv("ALLOWED_EMBED_ORIGINS", "")),
+			TrustedProxies:      parseList(getEnv("TRUSTED_PROXIES", "")),
 		},
 		Database: DatabaseConfig{
 			Path:            getEnv("DB_PATH", "/app/data/signatures.db"),
@@ -160,6 +166,16 @@ func getEnvDuration(key string, defaultVal time.Duration) time.Duration {
 		}
 	}
 	return defaultVal
+}
+
+func parseList(csv string) []string {
+	var out []string
+	for _, p := range strings.Split(csv, ",") {
+		if clean := strings.TrimSpace(p); clean != "" {
+			out = append(out, clean)
+		}
+	}
+	return out
 }
 
 func parseListToMap(csv string) map[string]bool {
